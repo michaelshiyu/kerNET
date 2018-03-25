@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
+# torch 0.3.1
 
 import torch
 from torch.autograd import Variable
 import torch_backend as K # TODO: relative import
+
+torch.manual_seed(1234)
 
 class kerLinear(torch.nn.Module):
     def __init__(self, ker_dim, out_dim, sigma, bias=True):
@@ -61,9 +64,9 @@ class kerLinear(torch.nn.Module):
         else: assert self.ker_dim==X.shape[0]
 
         x_image = self.kerMap(x, X, self.sigma)
-
+        """
         print('x_image', x_image)
-
+        """
         y = self.linear(x_image)
         return y
 
