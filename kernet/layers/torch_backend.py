@@ -2,7 +2,7 @@
 # torch 0.3.1
 
 import torch
-import numpy as np
+import math as m
 
 def gaussianKer(x, y, sigma):
     """
@@ -70,46 +70,113 @@ def kerMap(x, X, sigma):
 
     return x_image
 
+def one_hot(y, n_class):
+    """
+    Convert categorical labels to one-hot labels. Values of categorical labels
+    must be in {0, 1, ..., n_class-1}. This function performs the most
+    straightforward transform: numerical value of y is directly used as the
+    positional offset of the 1 in the code, e.g., if y_categorical = 3 and
+    n_class = 5, then y_onehot = [0, 0, 0, 1, 0].
+
+    Parameters
+    ----------
+    y : Tensor, shape (n_example, 1) or (1,) (singleton)
+
+    n_class : int
+
+    Returns
+    -------
+    y_onehot : Tensor (n_example, n_class)
+    """
+    assert n_class >= 2
+    if len(y.shape)==1: y.unsqueeze_(0)
+    assert len(y.shape)==2
+    # assert torch.max(y)+1 <= n_class # BUG: bool(Variable) is ambiguous
+
+    y = y.type(torch.LongTensor) # scatter_ requires index to be
+    # torch.LongTensor type, if y is of the correct type, this function
+    # does nothing and returns the original object
+
+    n_example = y.shape[0]
+
+    y_onehot = torch.FloatTensor(n_example, n_class).fill_(0)
+    ones = torch.FloatTensor(n_example, 1).fill_(1)
+    y_onehot.scatter_(1, y, ones)
+    return y_onehot
+
+def ideal_gram(y1, y2, n_class):
+    """
+    Ideal Gram matrix for classification.
+        k(x_i, x_j) = 1 if y_i == y_j;
+        k(x_i, x_j) = 0 if y_i != y_j.
+
+    Parameters
+    ----------
+    y1 : Tensor, shape (n1_example, 1) or (1,) (singleton)
+        Categorical labels. Values of categorical labels must be in
+        {0, 1, ..., n_class-1}.
+
+    y2 : Tensor, shape (n2_example, 1) or (1,) (singleton)
+
+    n_class : int
+
+    Returns
+    -------
+    ideal_gram : Tensor, shape (n1_example, n2_example)
+    """
+    y1_onehot, y2_onehot = one_hot(y1, n_class), one_hot(y2, n_class)
+    ideal_gram = y1_onehot.mm(y2_onehot.transpose(dim0=0, dim1=1))
+    return ideal_gram
+
+def frobenius_inner_prod(mat1, mat2):
+    """
+    Frobenius inner product of two matrices.
+    See https://en.wikipedia.org/wiki/Frobenius_inner_product.
+
+    Parameters
+    ----------
+    mat1, mat2 : Tensor, shape (m, n)
+
+    Returns
+    -------
+    f : scalar
+        Frobenius inner product of mat1 and mat2.
+    """
+    assert mat1.shape==mat2.shape
+    f = mat1.mul(mat2).sum()
+    return f
+
+
+def alignment(gram1, gram2):
+    """
+    Computes the empirical alignment between two kernels (Gram matrices). See
+    http://papers.nips.cc/paper/1946-on-kernel-target-alignment.pdf.
+
+    Parameters
+    ----------
+    gram1, gram2 : Tensor, shape (m, n)
+
+    Returns
+    -------
+    alignment : scalar
+    """
+    # TODO: this is probably not differentiable
+    alignment = frobenius_inner_prod(gram1, gram2) /\
+        m.sqrt(frobenius_inner_prod(gram1, gram1) *
+        frobenius_inner_prod(gram2, gram2))
+    return alignment
+
 if __name__=='__main__':
     x = torch.FloatTensor([[1, 2]])
     X = torch.FloatTensor([[1, 2], [3, 4], [5, 6]])
-    y = kerMap(x, X, sigma=1)
-    print(y)
-
-def ideal_gram(y):
-    # TODO: to be checked for multi-class, check if one-hot transform applied to x and y separately
-    # produces the same codebook, i.e., is class 1 transformed into 001 in both x, y
-    # or is it transformed into 001 in x but 010 in y
-    """
-    Get the "perfect" Gram matrix for classification using labels only: two
-    items with the same label have entry 1 in the Gram matrix and everywhere
-    else is 0. Using such a Gram matrix, the dataset can always be perfectly
-    classified. This is slightly more general than the similar concept introduced
-    in <on kernel-target alignment>, in there, they substitute 0 with -1.
-
-    :type y: tf n*0 vector
-    :type noisy: Boolean
-    :type c: float, coef controling the magnitude of the noise added
-    :rtype: tf n*n matrix
-    """
-    ideal_gram = tf.matmul(tf.one_hot(x, depth=n_classes), tf.transpose(
-    tf.one_hot(y, depth=n_classes)))
-    return ideal
-
-def alignment(gram, true_gram):
-    """
-    Get kernel alignment as a cost function. Input must be 2*2 matrices. So
-    works best with multi_k=False/one Gram at each layer.
-    Raises an error if one of the two matrices only has 0 entries.
-    Compatible with batch training.
-
-    :type K: tf 2*2 matrix
-    :type perfect_K: tf 2*2 matrix
-    :rtype: tf scalar
-    """
-    K = tf.cast(K, tf.float32)
-    perfect_K = tf.cast(perfect_K, tf.float32)
-
-    alignment = tf.reduce_sum(K * perfect_K) / \
-    tf.sqrt(tf.reduce_sum(K * K) * tf.reduce_sum(perfect_K * perfect_K))
-    return alignment
+    # y = kerMap(x, X, sigma=1)
+    y = torch.FloatTensor([[1], [3], [2]])
+    y_ = torch.FloatTensor([[2], [1]])
+    gram1 = ideal_gram(y, y_, 4)
+    print(gram1)
+    y = torch.FloatTensor([[3], [3], [3]])
+    y_ = torch.FloatTensor([[3], [3]])
+    gram2 = ideal_gram(y, y_, 4)
+    print(gram2)
+    print(frobenius_inner_prod(gram1, gram2))
+    print(alignment(gram1, gram2))

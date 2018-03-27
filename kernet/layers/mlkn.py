@@ -79,6 +79,12 @@ class MLKNClassifier(baseMLKN):
     use MLKNGeneral instead, the setup for training would be much simpler for
     MLKNGeneral and many more loss functions are supported.
     """
+    # TODO: this model uses kerLinear or nn.Linear (build thickLinear to make
+    # kernel-neural hybrid simpler (note: no kernel should be closer to input
+    # than neural)) layers only and all layers
+    # should be trained as RBFNs. Users should be encouraged to use the
+    # layerwise functionality of this model. Build another model that allows
+    # passing in sklearn.SVM objects in order to train the last layer as a SVM
     def __init__(self):
         super(MLKNClassifier, self).__init__()
         self._optimizer_counter = 0
@@ -96,7 +102,7 @@ class MLKNClassifier(baseMLKN):
         self._optimizer_counter += 1
         # optimizer indexing : optimizer 0 is the optimizer for layer 0
 
-    def fit(self, n_epoch, reg_coef, batch_size, x, X, y):
+    def fit(self, n_epoch, reg_coef, batch_size, x, X, y, n_class):
         assert self._optimizer_counter==self._layer_counter
         for i in range(self._optimizer_counter):
             layer = getattr(self, 'layer'+str(i))
@@ -106,7 +112,7 @@ class MLKNClassifier(baseMLKN):
             # rather than a dict?
 
         # TODO: get ideal before going into the loop
-        ideal_gram = K.ideal_gram(y)
+        ideal_gram = K.ideal_gram(y, y, n_class)
         for i in range(self._layer_counter-1):
             # train the representation-learning layers
             optimizer = getattr(self, 'optimizer'+str(i))
@@ -125,6 +131,8 @@ class MLKNClassifier(baseMLKN):
 
                 alignment = K.alignment(ideal_gram, gram)
                 loss = alignment # TODO: add regularization terms
+                # mse = torch.nn.MSELoss(size_average=False)
+                # loss = mse(ideal_gram, gram)
 
                 # train the layer
                 optimizer.zero_grad()
@@ -132,8 +140,8 @@ class MLKNClassifier(baseMLKN):
                 # needs to be differentiated at a time
                 optimizer.step()
 
-        print(y_pred)
-
+        # TODO: train the last layer as a RBFN classifier,  allow specifying
+        # loss used
 
 
 
@@ -145,16 +153,16 @@ if __name__=='__main__':
 
     x = Variable(torch.FloatTensor([[0, 7], [1, 2]]).type(dtype))
     X = Variable(torch.FloatTensor([[1, 2], [3, 4], [5, 6]]).type(dtype))
-    y = Variable(torch.FloatTensor([[.3, .4, .5], [.9, 1, 0]]).type(dtype))
+    y = Variable(torch.FloatTensor([[0], [1]]).type(dtype))
 
     mlkn = MLKNClassifier()
     mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=5, sigma=1, bias=True))
-    mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=3, sigma=1, bias=True))
+    mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=2, sigma=1, bias=True))
 
     mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-4))
     mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-4))
 
-    mlkn.fit(n_epoch=10, batch_size=50, x=x, X=X)
+    mlkn.fit(n_epoch=10, batch_size=50, x=x, X=X, reg_coef=.1, y=y, n_class=2)
 
     """
     y_pred = mlkn(x=x, X=X)
