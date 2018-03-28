@@ -130,15 +130,18 @@ class MLKNClassifier(baseMLKN):
                     )
 
                 alignment = K.alignment(ideal_gram, gram)
-                loss = alignment # TODO: add regularization terms
+                loss = -alignment # TODO: add regularization terms
                 # mse = torch.nn.MSELoss(size_average=False)
                 # loss = mse(ideal_gram, gram)
+
+                print(_, loss.data[0])
 
                 # train the layer
                 optimizer.zero_grad()
                 loss.backward() # TODO: freeze some subgraphs as only one layer
                 # needs to be differentiated at a time
                 optimizer.step()
+
 
         # TODO: train the last layer as a RBFN classifier,  allow specifying
         # loss used
@@ -151,18 +154,18 @@ if __name__=='__main__':
     if torch.cuda.is_available():
         dtype = torch.cuda.FloatTensor
 
-    x = Variable(torch.FloatTensor([[0, 7], [1, 2]]).type(dtype))
-    X = Variable(torch.FloatTensor([[1, 2], [3, 4], [5, 6]]).type(dtype))
-    y = Variable(torch.FloatTensor([[0], [1]]).type(dtype))
+    x = Variable(torch.FloatTensor([[0, 7], [1, 2]]).type(dtype), requires_grad=False)
+    X = Variable(torch.FloatTensor([[1, 2], [3, 4], [5, 6]]).type(dtype), requires_grad=False)
+    y = Variable(torch.FloatTensor([[0], [1], [1]]).type(dtype), requires_grad=False)
 
     mlkn = MLKNClassifier()
     mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=5, sigma=1, bias=True))
     mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=2, sigma=1, bias=True))
 
-    mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-4))
-    mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-4))
+    mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-1))
+    mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-1))
 
-    mlkn.fit(n_epoch=10, batch_size=50, x=x, X=X, reg_coef=.1, y=y, n_class=2)
+    mlkn.fit(n_epoch=(10000, 10), batch_size=50, x=X, X=X, reg_coef=.1, y=y, n_class=2)
 
     """
     y_pred = mlkn(x=x, X=X)
