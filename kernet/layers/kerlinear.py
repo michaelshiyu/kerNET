@@ -46,6 +46,10 @@ class kerLinear(torch.nn.Module):
         self.linear = torch.nn.Linear(ker_dim, out_dim, bias=bias)
         # TODO: customizable weight initializations
 
+        # alias the parameters
+        self.weight = self.linear.weight
+        self.bias = self.linear.bias
+
     def forward(self, x, X):
         """
         Parameters
