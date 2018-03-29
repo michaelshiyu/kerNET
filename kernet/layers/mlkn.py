@@ -104,10 +104,12 @@ class MLKNClassifier(baseMLKN):
 
     def fit(self, n_epoch, reg_coef, batch_size, x, X, y, n_class):
         assert self._optimizer_counter==self._layer_counter
+
+        # assign each optimizer to its layer ###################################
         for i in range(self._optimizer_counter):
             layer = getattr(self, 'layer'+str(i))
 
-            ######
+            #########
             # set the weights to some value to test if the network gives
             # the same results as those calculated by hand, this test uses
             # a two-layer network
@@ -118,25 +120,29 @@ class MLKNClassifier(baseMLKN):
                 layer.weight.data = torch.FloatTensor([[1.2, .3], [.2, 1.7]])
                 layer.bias.data = torch.FloatTensor([0.1, 0.2])
 
-            ######
+            #########
 
             optimizer = getattr(self, 'optimizer'+str(i))
             optimizer.param_groups[0]['params'] = list(layer.parameters())
             # TODO: why is optimizer.param_groups a list containing a dict
             # rather than a dict?
 
-        # TODO: get ideal before going into the loop
+        for param in self.parameters(): param.requires_grad=False # freeze all
+        # layers
+
+        # train the representation-learning layers #############################
         ideal_gram = K.ideal_gram(y, y, n_class)
         for i in range(self._layer_counter-1):
-            # train the representation-learning layers
             optimizer = getattr(self, 'optimizer'+str(i))
             next_layer = getattr(self, 'layer'+str(i+1))
+            layer = getattr(self, 'layer'+str(i))
             assert isinstance(next_layer, kerLinear) # TODO: see if
             # torch.nn.Linear can pass this and ban it if it can because each
             # layer uses the kernel function from the next layer to calculate
             # loss but nn.Linear does not have a kernel so it cannot be the
             # next layer for any layer
 
+            for param in layer.parameters(): param.requires_grad=True # unfreeze
             for _ in range(n_epoch[i]):
                 # compute loss
                 output = self.forward(x, X, upto=i)
@@ -158,15 +164,26 @@ class MLKNClassifier(baseMLKN):
 
                 # train the layer
                 optimizer.zero_grad()
-                loss.backward() # TODO: freeze some subgraphs as only one layer
+                loss.backward()
+
+                #########
+                # check gradient
+                print('weight', layer.weight)
+                print('gradient', layer.weight.grad.data)
+                break
+                #########
+
                 # needs to be differentiated at a time
                 optimizer.step()
+            for param in layer.parameters(): param.requires_grad=False # freeze
+            # this layer again
 
 
-        # train the last layer as a RBFN classifier,  allow specifying
-        # loss used
+
+        # train the last layer as a RBFN classifier ############################
         i = self._layer_counter-1
         optimizer = getattr(self, 'optimizer'+str(i))
+        layer = getattr(self, 'layer'+str(i))
 
         loss_fn = torch.nn.CrossEntropyLoss() # TODO: allow user specification
         # NOTE: CrossEntropyLoss combines softmax and crossentropy
@@ -183,6 +200,7 @@ class MLKNClassifier(baseMLKN):
         # NOTE: CrossEntropyLoss and NLLLoss require label tensor to be of
         # shape (n)
 
+        for param in layer.parameters(): param.requires_grad=True # unfreeze
         for _ in range(n_epoch[i]):
             # compute loss
             output = self.forward(x, X, upto=i)
@@ -203,12 +221,19 @@ class MLKNClassifier(baseMLKN):
 
             # train the layer
             optimizer.zero_grad()
-            loss.backward() # TODO: freeze some subgraphs as only one layer
-            # needs to be differentiated at a time
+            loss.backward()
+
+            #########
+            # check gradient
+            print('weight', layer.weight)
+            print('gradient', layer.weight.grad.data)
+            print('bias gradient', layer.bias.grad.data)
+            break
+            #########
+
             optimizer.step()
-
-
-
+        for param in layer.parameters(): param.requires_grad=False # freeze
+        # this layer again
 
 if __name__=='__main__':
     dtype = torch.FloatTensor

@@ -109,7 +109,8 @@ def one_hot(y, n_class):
     ones = torch.FloatTensor(n_example, 1).fill_(1)
     y_onehot.scatter_(1, y, ones)
     # return y_onehot
-    return Variable(y_onehot) # BUG: if this is not Variable, the following
+    return Variable(y_onehot, requires_grad=False)
+    # BUG: if this is not Variable, the following
     # calculation for F inner prod cannot be done since .mul only supports
     # Tensor*Tensor or Var*Var
     # BUG: if original y is on GPU, y_onehot should also be on GPU
