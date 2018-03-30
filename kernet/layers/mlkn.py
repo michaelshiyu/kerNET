@@ -103,6 +103,9 @@ class MLKNClassifier(baseMLKN):
         # optimizer indexing : optimizer 0 is the optimizer for layer 0
 
     def fit(self, n_epoch, reg_coef, batch_size, x, X, y, n_class):
+        """
+        y : Variable of shape (n_example, 1)
+        """
         assert self._optimizer_counter==self._layer_counter
 
         # assign each optimizer to its layer ###################################
@@ -134,7 +137,6 @@ class MLKNClassifier(baseMLKN):
 
         # train the representation-learning layers #############################
         ideal_gram = K.ideal_gram(y, y, n_class)
-
         for i in range(self._layer_counter-1):
             optimizer = getattr(self, 'optimizer'+str(i))
             next_layer = getattr(self, 'layer'+str(i+1))
@@ -149,13 +151,18 @@ class MLKNClassifier(baseMLKN):
             for _ in range(n_epoch[i]):
                 # compute loss
                 output = self.forward(x, X, upto=i)
-                # print(output) # NOTE: layer0 initial feedforward passed
+                # output.register_hook(print) # NOTE: see note, there is a
+                # problem here
+                # print('output', output) # NOTE: layer0 initial feedforward passed
                 gram = K.kerMap(
                     output,
                     output,
                     next_layer.sigma
                     )
                 # print(gram) # NOTE: initial feedforward passed
+
+                # gram.register_hook(print) # NOTE: gradient here is off by *0.5:
+                # hand-calculated grad * 2 = pytorch grad
 
                 alignment = K.alignment(ideal_gram, gram)
                 # print(alignment) # NOTE: initial feedforward passed
@@ -172,7 +179,7 @@ class MLKNClassifier(baseMLKN):
                 #########
                 # check gradient
                 # print('weight', layer.weight)
-                # print('gradient', layer.weight.grad.data)
+                # print('gradient', layer.weight.grad.data) # NOTE: see note
                 # break
                 #########
 
@@ -244,39 +251,4 @@ class MLKNClassifier(baseMLKN):
         # this layer again
 
 if __name__=='__main__':
-    dtype = torch.FloatTensor
-    if torch.cuda.is_available():
-        dtype = torch.cuda.FloatTensor
-
-    # x = Variable(torch.FloatTensor([[0, 7], [1, 2]]).type(dtype), requires_grad=False)
-    X = Variable(torch.FloatTensor([[1, 2], [3, 4]]).type(dtype), requires_grad=False)
-    y = Variable(torch.FloatTensor([[0], [0]]).type(dtype), requires_grad=False)
-
-    mlkn = MLKNClassifier()
-    mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=2, sigma=3, bias=True))
-    mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=2, sigma=2, bias=True))
-
-    mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-1))
-    mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-1))
-
-    mlkn.fit(n_epoch=(100, 100), batch_size=50, x=X, X=X, reg_coef=.1, y=y, n_class=2)
-
-    """
-    y_pred = mlkn(x=x, X=X)
-    print('y_pred', y_pred)
-    print('weight', mlkn.layer0.linear.weight)
-    print('bias', mlkn.layer0.linear.bias)
-    print('params', list(mlkn.parameters()))
-
-
-    criterion = torch.nn.MSELoss(size_average=False)
-    optimizer = torch.optim.SGD(mlkn.parameters(), lr=1e-4)
-    for t in range(500):
-        y_pred = mlkn(x, X)
-        loss = criterion(y_pred, y)
-        print(t, loss.data[0])
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-    """
+    pass
