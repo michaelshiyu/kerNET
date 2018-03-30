@@ -108,7 +108,7 @@ class MLKNClassifier(baseMLKN):
         # assign each optimizer to its layer ###################################
         for i in range(self._optimizer_counter):
             layer = getattr(self, 'layer'+str(i))
-
+            """
             #########
             # set the weights to some value to test if the network gives
             # the same results as those calculated by hand, this test uses
@@ -121,6 +121,8 @@ class MLKNClassifier(baseMLKN):
                 layer.bias.data = torch.FloatTensor([0.1, 0.2])
 
             #########
+            """
+
 
             optimizer = getattr(self, 'optimizer'+str(i))
             optimizer.param_groups[0]['params'] = list(layer.parameters())
@@ -132,6 +134,7 @@ class MLKNClassifier(baseMLKN):
 
         # train the representation-learning layers #############################
         ideal_gram = K.ideal_gram(y, y, n_class)
+
         for i in range(self._layer_counter-1):
             optimizer = getattr(self, 'optimizer'+str(i))
             next_layer = getattr(self, 'layer'+str(i+1))
@@ -168,9 +171,9 @@ class MLKNClassifier(baseMLKN):
 
                 #########
                 # check gradient
-                print('weight', layer.weight)
-                print('gradient', layer.weight.grad.data)
-                break
+                # print('weight', layer.weight)
+                # print('gradient', layer.weight.grad.data)
+                # break
                 #########
 
                 # needs to be differentiated at a time
@@ -190,7 +193,7 @@ class MLKNClassifier(baseMLKN):
 
         # loss_fn = torch.nn.NLLLoss() # NOTE: bases of the log used in NLLLoss and
         # CrossEntropyLoss are both e
-        # softmax = torch.nn.LogSoftmax(dim=1) # NOTE: softmax on dimension 1
+        # logsoftmax = torch.nn.LogSoftmax(dim=1) # NOTE: softmax on dimension 1
         # for output Tensor of shape (n_example, n_class)
 
         y = y.type(torch.LongTensor) # TODO: support GPU
@@ -206,7 +209,7 @@ class MLKNClassifier(baseMLKN):
             output = self.forward(x, X, upto=i)
             # print(output) # NOTE: layer1 initial feedforward passed
             ######### NLLLoss
-            # output_prob = softmax(output) # output probability
+            # output_prob = logsoftmax(output) # log output probability
             # print(output_prob) # NOTE: initial feedforward passed
             # loss = loss_fn(output_prob, y)# TODO: add regularization terms
             # print(loss) # NOTE: initial feedforward passed
@@ -217,6 +220,11 @@ class MLKNClassifier(baseMLKN):
             # print(loss) # NOTE: initial feedforward passed
             #########
 
+            # define crossentropy loss to test gradient
+            # loss = output_prob.mul(K.one_hot(y.unsqueeze(dim=1), n_class)).sum()/2
+            # NOTE: this calculation results in the same gradient as that
+            # calculated by autograd
+
             print(_, loss.data[0])
 
             # train the layer
@@ -225,10 +233,10 @@ class MLKNClassifier(baseMLKN):
 
             #########
             # check gradient
-            print('weight', layer.weight)
-            print('gradient', layer.weight.grad.data)
-            print('bias gradient', layer.bias.grad.data)
-            break
+            # print('weight', layer.weight)
+            # print('gradient', layer.weight.grad.data)
+            # print('bias gradient', layer.bias.grad.data)
+            # break
             #########
 
             optimizer.step()
@@ -240,9 +248,9 @@ if __name__=='__main__':
     if torch.cuda.is_available():
         dtype = torch.cuda.FloatTensor
 
-    x = Variable(torch.FloatTensor([[0, 7], [1, 2]]).type(dtype), requires_grad=False)
+    # x = Variable(torch.FloatTensor([[0, 7], [1, 2]]).type(dtype), requires_grad=False)
     X = Variable(torch.FloatTensor([[1, 2], [3, 4]]).type(dtype), requires_grad=False)
-    y = Variable(torch.FloatTensor([[1], [0]]).type(dtype), requires_grad=False)
+    y = Variable(torch.FloatTensor([[0], [0]]).type(dtype), requires_grad=False)
 
     mlkn = MLKNClassifier()
     mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=2, sigma=3, bias=True))
@@ -251,7 +259,7 @@ if __name__=='__main__':
     mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-1))
     mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-1))
 
-    mlkn.fit(n_epoch=(10, 10), batch_size=50, x=X, X=X, reg_coef=.1, y=y, n_class=2)
+    mlkn.fit(n_epoch=(100, 100), batch_size=50, x=X, X=X, reg_coef=.1, y=y, n_class=2)
 
     """
     y_pred = mlkn(x=x, X=X)
