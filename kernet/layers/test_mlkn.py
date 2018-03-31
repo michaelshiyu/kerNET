@@ -50,6 +50,27 @@ if __name__=='__main__':
     x = normalizer.fit_transform(x)
     n_class = np.amax(y) + 1
 
+    ############################
+    """
+    # addr = '/Users/michael/Github/data/mnist/' #TODO: change local names, put Github/ on iCloud
+    # addr = '/home/michaelshiyu/Github/data/mnist/' # for miner
+    addr = '/home/administrator/Github/data/mnist/' # for lab linux machine
+    # addr = '/home/paperspace/Github/data/mnist/' # for paperspace
+    x_train = np.load(addr+'mnist_train_img.npy') # when change datasets, change size of validation set
+    y_train = np.load(addr+'mnist_train_label.npy')
+    x_test = np.load(addr+'mnist_test_img.npy')
+    y_test = np.load(addr+'mnist_test_label.npy')
+    x_val = x_train[10000:]
+    y_val = y_train[10000:]
+    x_train = x_train[0:3000]
+    y_train = y_train[0:3000]
+    # TODO: get balanced subset
+
+    x = x_train
+    y = y_train
+    """
+    ############################
+
     dtype = torch.FloatTensor
     if torch.cuda.is_available():
         dtype = torch.cuda.FloatTensor
@@ -70,12 +91,14 @@ if __name__=='__main__':
     # x = Variable(torch.FloatTensor([[0, 7], [1, 2]]).type(dtype), requires_grad=False)
     # X = Variable(torch.FloatTensor([[1, 2], [3, 4]]).type(dtype), requires_grad=False)
     # y = Variable(torch.FloatTensor([[1], [1]]).type(dtype), requires_grad=False)
+    for sigma1 in [5]:
+        for sigma2 in [.1]:
+            print(sigma1, sigma2)
+            mlkn = MLKNClassifier()
+            mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=15, sigma=sigma1, bias=True))
+            mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=3, sigma=sigma2, bias=True))
 
-    mlkn = MLKNClassifier()
-    mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=15, sigma=5, bias=True))
-    mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=3, sigma=.5, bias=True))
+            mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-3))
+            mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-3))
 
-    mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-4))
-    mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-4))
-
-    mlkn.fit(n_epoch=(100, 100), batch_size=50, x=X, X=X, reg_coef=.1, y=y, n_class=int(n_class))
+            mlkn.fit(n_epoch=(100, 100), batch_size=50, x=X, X=X, reg_coef=.1, y=y, n_class=int(n_class))
