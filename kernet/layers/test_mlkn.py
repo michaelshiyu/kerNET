@@ -91,14 +91,13 @@ if __name__=='__main__':
     # x = Variable(torch.FloatTensor([[0, 7], [1, 2]]).type(dtype), requires_grad=False)
     # X = Variable(torch.FloatTensor([[1, 2], [3, 4]]).type(dtype), requires_grad=False)
     # y = Variable(torch.FloatTensor([[1], [1]]).type(dtype), requires_grad=False)
-    for sigma1 in [5]:
+    for lr1 in [1e-3]:
         for sigma2 in [.1]:
-            print(sigma1, sigma2)
             mlkn = MLKNClassifier()
-            mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=15, sigma=sigma1, bias=True))
-            mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=3, sigma=sigma2, bias=True))
+            mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=15, sigma=5, bias=True))
+            mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=3, sigma=.1, bias=True))
 
-            mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-3))
-            mlkn.add_optimizer(torch.optim.SGD(params=mlkn.parameters(), lr=1e-3))
+            mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=lr1))
+            mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=1e-3))
 
             mlkn.fit(n_epoch=(100, 100), batch_size=50, x=X, X=X, reg_coef=.1, y=y, n_class=int(n_class))

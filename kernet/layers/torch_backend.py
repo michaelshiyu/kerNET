@@ -41,6 +41,8 @@ def gaussianKer(x, y, sigma):
     # y.sub(x.unsqueeze(1)).pow(2).sum(dim=-1)
 
     gram = y.sub(x.unsqueeze(1)).pow(2).sum(dim=-1).mul(-1./(2*sigma**2)).exp()
+    # gram = y.sub(x.unsqueeze(1)).pow(2).sum(dim=-1).mul(-sigma).exp()
+
     return gram
 
 

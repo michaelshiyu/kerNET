@@ -179,12 +179,12 @@ class MLKNClassifier(baseMLKN):
                 #########
                 # check gradient
                 # print('weight', layer.weight)
-                # print('gradient', layer.weight.grad.data) # NOTE: see note
-                # break
+                print('gradient', layer.weight.grad.data) # NOTE: see note
                 #########
 
                 # needs to be differentiated at a time
                 optimizer.step()
+
             for param in layer.parameters(): param.requires_grad=False # freeze
             # this layer again
 
@@ -243,7 +243,7 @@ class MLKNClassifier(baseMLKN):
             # print('weight', layer.weight)
             # print('gradient', layer.weight.grad.data)
             # print('bias gradient', layer.bias.grad.data)
-            # break
+            break
             #########
 
             optimizer.step()
