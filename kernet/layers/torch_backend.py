@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # torch 0.3.1
+from __future__ import division, print_function
 import math as m
 
 import torch
@@ -164,7 +165,6 @@ def frobenius_inner_prod(mat1, mat2):
     f = mat1.mul(mat2).sum()
     return f
 
-
 def alignment(gram1, gram2):
     """
     Computes the empirical alignment between two kernels (Gram matrices). See
@@ -185,6 +185,36 @@ def alignment(gram1, gram2):
         m.sqrt(frobenius_inner_prod(gram1, gram1) *
         frobenius_inner_prod(gram2, gram2))
     return alignment
+
+def get_batch(X, Y, batch_size, shuffle=False):
+    """
+    Generator, break a random sample X into batches of size batch_size.
+    The last batch may be of a smaller size. If shuffle, X is shuffled
+    before getting the batches.
+
+    This light-weight function is to be used for small, simple datasets.
+    For large datasets and better management of memory and multiprocessing,
+    consider wrap the data into a torch.utils.data.Dataset object and
+    use torch.utils.data.DataLoader.
+
+    X : Tensor, shape (n_example, dim_1, ..., dim_d)
+
+    Y : Tensor, shape (n_example, dim_1, ..., dim_p)
+        Target values.
+
+    batch_size : int
+
+    shuffle (optional) : bool
+    """
+    assert X.shape[0]==Y.shape[0]
+    n_batch = X.shape[0] // batch_size
+    last_batch = bool(X.shape[0] % batch_size)
+
+    for i in range(n_batch):
+        yield X[i*batch_size: (i+1)*batch_size], Y[i*batch_size: (i+1)*batch_size]
+    if last_batch:
+        i += 1
+        yield X[i*batch_size:], Y[i*batch_size:]
 
 if __name__=='__main__':
     x = torch.FloatTensor([[1, 2]])

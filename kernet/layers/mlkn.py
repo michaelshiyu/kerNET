@@ -13,6 +13,8 @@ from kerlinear import kerLinear
 # http://pytorch.org/docs/0.3.1/notes/multiprocessing.html and nn.DataParallel
 # TODO: check numerical grad for the toy example
 
+# TODO: batch training; relative import; tests
+
 torch.manual_seed(1234)
 
 class baseMLKN(torch.nn.Module):
@@ -103,10 +105,6 @@ class baseMLKN(torch.nn.Module):
         """
         x.volatile = True
         return self.forward(x, X, upto)
-
-    def get_batch(self, X, batch_size):
-        """
-        Generator for
 
     def fit(self):
         raise NotImplementedError('must be implemented by subclass')

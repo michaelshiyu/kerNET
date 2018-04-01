@@ -88,6 +88,22 @@ if __name__=='__main__':
     # x = Variable(torch.FloatTensor([[0, 7], [1, 2]]).type(dtype), requires_grad=False)
     # X = Variable(torch.FloatTensor([[1, 2], [3, 4]]).type(dtype), requires_grad=False)
     # y = Variable(torch.FloatTensor([[1], [1]]).type(dtype), requires_grad=False)
+    """
+    ######### cut from mlkn.py
+    # set the weights to some value to test if the network gives
+    # the same results as those calculated by hand, this test uses
+    # a two-layer network
+    if i==0:
+        layer.weight.data = torch.FloatTensor([[.1, .2], [.5, .7]])
+        layer.bias.data = torch.FloatTensor([0, 0])
+    if i==1:
+        layer.weight.data = torch.FloatTensor([[1.2, .3], [.2, 1.7]])
+        layer.bias.data = torch.FloatTensor([0.1, 0.2])
+
+    #########
+    """
+
+    """
     mlkn = MLKNClassifier()
     mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=15, sigma=5, bias=True))
     mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=3, sigma=.1, bias=True))
@@ -108,3 +124,7 @@ if __name__=='__main__':
     y_pred = mlkn.predict(x_test, X)
     err = mlkn.get_error(y_pred, y_test)
     print('{:.2f}%'.format(err.data[0] * 100))
+    """
+
+    for x, y in K.get_batch(X, Y, 7, True):
+        print(x, y)
