@@ -14,9 +14,9 @@ torch.manual_seed(1234)
 
 if __name__=='__main__':
 
-    # x, y = load_breast_cancer(return_X_y=True)
+    x, y = load_breast_cancer(return_X_y=True)
     # x, y = load_digits(return_X_y=True)
-    x, y = load_iris(return_X_y=True)
+    # x, y = load_iris(return_X_y=True)
     # x = np.load("sonar.npy")
     # y = np.load("sonar_labels.npy")
     # x = np.load("diabetes.npy")
@@ -78,12 +78,11 @@ if __name__=='__main__':
     X = Variable(torch.from_numpy(x).type(dtype), requires_grad=False)
     Y = Variable(torch.from_numpy(y).type(dtype), requires_grad=False)
     new_index = torch.randperm(X.shape[0])
-    X, Y = X[new_index].clone(), Y[new_index].clone()
-    # NOTE: cloning turns X, Y into leaf variables
+    X, Y = X[new_index], Y[new_index]
 
-    index = 50
-    x_train, y_train = X[:index].clone(), Y[:index].clone()
-    x_test, y_test = X[index:].clone(), Y[index:].clone()
+    index = len(X)//2
+    x_train, y_train = X[:index], Y[:index]
+    x_test, y_test = X[index:], Y[index:]
 
     # x = Variable(torch.FloatTensor([[0, 7], [1, 2]]).type(dtype), requires_grad=False)
     # X = Variable(torch.FloatTensor([[1, 2], [3, 4]]).type(dtype), requires_grad=False)
@@ -103,10 +102,10 @@ if __name__=='__main__':
     #########
     """
 
-    """
+
     mlkn = MLKNClassifier()
-    mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=15, sigma=5, bias=True))
-    mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=3, sigma=.1, bias=True))
+    mlkn.add_layer(kerLinear(ker_dim=x_train.shape[0], out_dim=15, sigma=5, bias=True))
+    mlkn.add_layer(kerLinear(ker_dim=x_train.shape[0], out_dim=3, sigma=.1, bias=True))
 
     mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=0.1))
     mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=.1))
@@ -114,17 +113,13 @@ if __name__=='__main__':
     mlkn.add_loss(torch.nn.CrossEntropyLoss())
 
     mlkn.fit(
-        n_epoch=(100, 100),
-        batch_size=50,
-        x=x_train,
-        X=X,
-        y=y_train,
+        n_epoch=(30, 30),
+        batch_size=20,
+        shuffle=True,
+        X=x_train,
+        Y=y_train,
         n_class=3
         )
-    y_pred = mlkn.predict(x_test, X)
+    y_pred = mlkn.predict(X_test=x_test, X=x_train, batch_size=15)
     err = mlkn.get_error(y_pred, y_test)
-    print('{:.2f}%'.format(err.data[0] * 100))
-    """
-
-    for x, y in K.get_batch(X, Y, 7, True):
-        print(x, y)
+    print('error rate: {:.2f}%'.format(err.data[0] * 100))

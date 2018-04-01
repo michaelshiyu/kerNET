@@ -186,7 +186,7 @@ def alignment(gram1, gram2):
         frobenius_inner_prod(gram2, gram2))
     return alignment
 
-def get_batch(X, Y, batch_size, shuffle=False):
+def get_batch(*sets, batch_size, shuffle=False):
     """
     Generator, break a random sample X into batches of size batch_size.
     The last batch may be of a smaller size. If shuffle, X is shuffled
@@ -197,24 +197,39 @@ def get_batch(X, Y, batch_size, shuffle=False):
     consider wrap the data into a torch.utils.data.Dataset object and
     use torch.utils.data.DataLoader.
 
-    X : Tensor, shape (n_example, dim_1, ..., dim_d)
+    X1 : Tensor, shape (n_example, dim_1, ..., dim_d1)
 
-    Y : Tensor, shape (n_example, dim_1, ..., dim_p)
-        Target values.
+    X2 : Tensor, shape (n_example, dim_1, ..., dim_d2)
+
+    ...
 
     batch_size : int
 
     shuffle (optional) : bool
+
+    Returns
+    -------
+    x1 : Tensor, shape (batch_size, dim_1, ..., dim_d1)
+
+    x2 : Tensor, shape (batch_size, dim_1, ..., dim_d2)
+
+    ...
     """
-    assert X.shape[0]==Y.shape[0]
-    n_batch = X.shape[0] // batch_size
-    last_batch = bool(X.shape[0] % batch_size)
+    lens = list(map(lambda x: x.shape[0], sets))
+    assert lens.count(lens[0])==len(lens) # make sure all sets are equal in size
+    # of their 1st dims
+
+    if shuffle:
+        new_index = torch.randperm(lens[0])
+        sets = list(map(lambda x: x[new_index], sets))
+    n_batch = lens[0] // batch_size
+    last_batch = bool(lens[0] % batch_size)
 
     for i in range(n_batch):
-        yield X[i*batch_size: (i+1)*batch_size], Y[i*batch_size: (i+1)*batch_size]
+        yield tuple(map(lambda x: x[i*batch_size: (i+1)*batch_size], sets))
     if last_batch:
         i += 1
-        yield X[i*batch_size:], Y[i*batch_size:]
+        yield tuple(map(lambda x: x[i*batch_size:], sets))
 
 if __name__=='__main__':
     x = torch.FloatTensor([[1, 2]])
