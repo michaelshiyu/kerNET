@@ -13,7 +13,7 @@ from kerlinear import kerLinear
 # http://pytorch.org/docs/0.3.1/notes/multiprocessing.html and nn.DataParallel
 # TODO: check numerical grad for the toy example
 
-# TODO: batch training; relative import; tests
+# TODO: relative import; tests
 
 torch.manual_seed(1234)
 
@@ -195,7 +195,7 @@ class MLKNClassifier(baseMLKN):
         ----------
 
         X_test : Tensor, shape (n1_example, dim)
-            Test set. Must be a leaf Variable.
+            Test set.
 
         X : Tensor, shape (n_example, dim)
             Training set.
@@ -226,6 +226,8 @@ class MLKNClassifier(baseMLKN):
             i += 1
 
         return Variable(Y_pred, requires_grad=False)
+        # NOTE: this is to make the type of Y_pred consistent with X_test since
+        # X_test must be a Variable
 
     def get_error(self, y_pred, y):
         """

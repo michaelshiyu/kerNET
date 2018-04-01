@@ -216,8 +216,8 @@ def get_batch(*sets, batch_size, shuffle=False):
     ...
     """
     lens = list(map(lambda x: x.shape[0], sets))
-    assert lens.count(lens[0])==len(lens) # make sure all sets are equal in size
-    # of their 1st dims
+    assert lens.count(lens[0])==len(lens) # make sure all sets are equal in
+    # sizes of their 1st dims
 
     if shuffle:
         new_index = torch.randperm(lens[0])

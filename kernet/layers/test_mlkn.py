@@ -48,7 +48,7 @@ if __name__=='__main__':
 
     normalizer = StandardScaler()
     x = normalizer.fit_transform(x)
-    n_class = np.amax(y) + 1
+    n_class = int(np.amax(y) + 1)
 
     ############################
     """
@@ -105,7 +105,7 @@ if __name__=='__main__':
 
     mlkn = MLKNClassifier()
     mlkn.add_layer(kerLinear(ker_dim=x_train.shape[0], out_dim=15, sigma=5, bias=True))
-    mlkn.add_layer(kerLinear(ker_dim=x_train.shape[0], out_dim=3, sigma=.1, bias=True))
+    mlkn.add_layer(kerLinear(ker_dim=x_train.shape[0], out_dim=n_class, sigma=.1, bias=True))
 
     mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=0.1))
     mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=.1))
@@ -114,11 +114,11 @@ if __name__=='__main__':
 
     mlkn.fit(
         n_epoch=(30, 30),
-        batch_size=20,
+        batch_size=30,
         shuffle=True,
         X=x_train,
         Y=y_train,
-        n_class=3
+        n_class=n_class
         )
     y_pred = mlkn.predict(X_test=x_test, X=x_train, batch_size=15)
     err = mlkn.get_error(y_pred, y_test)
