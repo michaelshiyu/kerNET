@@ -100,4 +100,4 @@ if __name__=='__main__':
             mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=lr1))
             mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=1e-3))
 
-            mlkn.fit(n_epoch=(100, 100), batch_size=50, x=X, X=X, reg_coef=.1, y=y, n_class=int(n_class))
+            mlkn.fit_bp(n_epoch=(1500, 100), batch_size=50, x=X, X=X, reg_coef=.1, y=y, n_class=int(n_class))

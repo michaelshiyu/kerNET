@@ -250,5 +250,30 @@ class MLKNClassifier(baseMLKN):
         for param in layer.parameters(): param.requires_grad=False # freeze
         # this layer again
 
+    def fit_bp(self, n_epoch, reg_coef, batch_size, x, X, y, n_class):
+        loss_fn = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.SGD(self.parameters(), lr=100, momentum=.9)
+        for _ in range(n_epoch[0]):
+            output = self.forward(x, X)
+
+            y = y.type(torch.LongTensor).view(-1,)
+            ######### CrossEntropyLoss
+            loss = loss_fn(output, y)
+
+
+            print(_, loss.data[0])
+
+            # train the layer
+            optimizer.zero_grad()
+            loss.backward()
+
+            #########
+            # check gradient
+            # print('weight', layer.weight)
+            # print('gradient', layer.weight.grad.data)
+            # print('bias gradient', layer.bias.grad.data)
+            #########
+            optimizer.step()
+
 if __name__=='__main__':
     pass
