@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # torch 0.3.1
+from __future__ import print_function, division
 
 import torch
 from torch.autograd import Variable
@@ -8,6 +9,9 @@ from kerlinear import kerLinear
 
 # TODO: check GPU compatibility: move data and modules on GPU, see, for example,
 # https://github.com/pytorch/pytorch/issues/584
+# TODO: using multiple devices, see
+# http://pytorch.org/docs/0.3.1/notes/multiprocessing.html and nn.DataParallel
+# TODO: check numerical grad for the toy example
 
 torch.manual_seed(1234)
 
@@ -100,6 +104,10 @@ class baseMLKN(torch.nn.Module):
         x.volatile = True
         return self.forward(x, X, upto)
 
+    def get_batch(self, X, batch_size):
+        """
+        Generator for
+
     def fit(self):
         raise NotImplementedError('must be implemented by subclass')
 
@@ -109,7 +117,7 @@ class MLKNClassifier(baseMLKN):
     in https://arxiv.org/abs/1802.03774. This feature can be tedious to
     implement in standard PyTorch since a lot of details need to be taken care
     of.
-    
+
     If one wants a MLKN classifier trained with standard backpropagation,
     use MLKNGeneral instead, the setup for training would be much simpler for
     MLKNGeneral and many more loss functions are supported.
@@ -249,9 +257,8 @@ class MLKNClassifier(baseMLKN):
         ideal_gram = K.ideal_gram(y, y, n_class)
         ideal_gram=ideal_gram.type(torch.cuda.FloatTensor)\
         if ideal_gram.is_cuda else ideal_gram.type(torch.FloatTensor)
-        # NOTE: required by MSELoss
+        # NOTE: required by CosineSimilarity
 
-        # loss_fn = torch.nn.MSELoss()
         loss_fn = torch.nn.CosineSimilarity() # NOTE: equivalent to alignment
         for i in range(self._layer_counter-1):
             optimizer = getattr(self, 'optimizer'+str(i))
@@ -267,34 +274,20 @@ class MLKNClassifier(baseMLKN):
 
             for param in layer.parameters(): param.requires_grad=True # unfreeze
             for _ in range(n_epoch[i]):
-                # compute loss
                 output = self.forward(x, X, upto=i)
-                # output.register_hook(print) # NOTE: (for alignment)
-                # see note, there is a problem here
-                #########
+                # output.register_hook(print)
                 # print('output', output) # NOTE: layer0 initial feedforward passed
-                #########
+
                 gram = K.kerMap(
                     output,
                     output,
                     next_layer.sigma
                     )
-                #########
                 # print(gram) # NOTE: initial feedforward passed
-                #########
-                # gram.register_hook(print) # NOTE: (for alignment)
-                # gradient here is off by *0.5: hand-calculated grad * 2 =
-                # pytorch grad
-
-                # BUG: using alignment loss causes gradient problem, see
-                # comments from past commits
-                """
-                alignment = K.alignment(ideal_gram, gram)
-                # print(alignment) # NOTE: initial feedforward passed
-                loss = -alignment
-                """
-
-                # loss = loss_fn(gram, ideal_gram)
+                # gram.register_hook(print) # NOTE: (for torch_backend.alignment)
+                # gradient here is inconsistent using the alignment loss from
+                # torch_backend: hand-calculated_grad*n_example =
+                # pytorch_grad
 
                 loss = -loss_fn(gram.view(1, -1), ideal_gram.view(1, -1))
                 # NOTE: negative alignment
@@ -312,15 +305,13 @@ class MLKNClassifier(baseMLKN):
                 #########
                 # check gradient
                 # print('weight', layer.weight)
-                # print('gradient', layer.weight.grad.data) # NOTE: see note
+                # print('gradient', layer.weight.grad.data)
                 #########
 
                 optimizer.step()
 
             for param in layer.parameters(): param.requires_grad=False # freeze
             # this layer again
-
-
 
         # train the last layer as a RBFN classifier ############################
         i = self._layer_counter-1
