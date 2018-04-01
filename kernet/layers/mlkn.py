@@ -108,10 +108,8 @@ class MLKNClassifier(baseMLKN):
     MLKN classifier dedicated for layerwise training using method proposed
     in https://arxiv.org/abs/1802.03774. This feature can be tedious to
     implement in standard PyTorch since a lot of details need to be taken care
-    of. In this current version, we are substituting the alignment loss
-    for hidden layers with the standard MSE loss because the former seems to
-    mess things up for the autograd of PyTorch, we are still debugging that.
-
+    of.
+    
     If one wants a MLKN classifier trained with standard backpropagation,
     use MLKNGeneral instead, the setup for training would be much simpler for
     MLKNGeneral and many more loss functions are supported.
@@ -253,7 +251,8 @@ class MLKNClassifier(baseMLKN):
         if ideal_gram.is_cuda else ideal_gram.type(torch.FloatTensor)
         # NOTE: required by MSELoss
 
-        loss_fn = torch.nn.MSELoss()
+        # loss_fn = torch.nn.MSELoss()
+        loss_fn = torch.nn.CosineSimilarity() # NOTE: equivalent to alignment
         for i in range(self._layer_counter-1):
             optimizer = getattr(self, 'optimizer'+str(i))
             next_layer = getattr(self, 'layer'+str(i+1))
@@ -295,12 +294,16 @@ class MLKNClassifier(baseMLKN):
                 loss = -alignment
                 """
 
-                loss = loss_fn(gram, ideal_gram) # NOTE: L2 regulatization
+                # loss = loss_fn(gram, ideal_gram)
+
+                loss = -loss_fn(gram.view(1, -1), ideal_gram.view(1, -1))
+                # NOTE: negative alignment
+                # NOTE: L2 regulatization
                 # is taken care of by setting the weight_decay param in the
                 # optimizer, see
                 # https://discuss.pytorch.org/t/simple-l2-regularization/139
 
-                print(_, loss.data[0])
+                print(_, -loss.data[0])
 
                 # train the layer
                 optimizer.zero_grad()

@@ -98,7 +98,7 @@ if __name__=='__main__':
     mlkn.add_loss(torch.nn.CrossEntropyLoss())
 
     mlkn.fit(
-        n_epoch=(10, 10),
+        n_epoch=(100, 100),
         batch_size=50,
         x=x_train,
         X=X,
