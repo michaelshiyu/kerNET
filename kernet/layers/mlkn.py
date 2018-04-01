@@ -6,6 +6,9 @@ from torch.autograd import Variable
 import torch_backend as K # TODO: relative import
 from kerlinear import kerLinear
 
+# TODO: check GPU compatibility: move data and modules on GPU, see, for example,
+# https://github.com/pytorch/pytorch/issues/584
+
 torch.manual_seed(1234)
 
 class baseMLKN(torch.nn.Module):
@@ -39,8 +42,10 @@ class baseMLKN(torch.nn.Module):
         ----------
 
         x : Tensor, shape (batch_size, dim)
+            Batch.
 
         X : Tensor, shape (n_example, dim)
+            Training set.
 
         upto (optional) : int
             Index for the layer upto (and including) which we will evaluate
@@ -49,6 +54,7 @@ class baseMLKN(torch.nn.Module):
         Returns
         -------
         y : Tensor, shape (batch_size, out_dim)
+            Batch output.
         """
         if upto is not None: # cannot use 'if upto' here since it is 0-indexed
         # and layer0 is the first layer
@@ -67,6 +73,33 @@ class baseMLKN(torch.nn.Module):
 
         return y
 
+    def forward_volatile(self, x, X, upto=None):
+        """
+        Feedforward upto layer 'upto' in volatile mode. Use for inference. See
+        http://pytorch.org/docs/0.3.1/notes/autograd.html.
+        If 'upto' is not passed, this works as the standard forward function
+        in PyTorch.
+
+        Parameters
+        ----------
+
+        x : Tensor, shape (batch_size, dim)
+            Batch. Must be a leaf Variable.
+
+        X : Tensor, shape (n_example, dim)
+            Training set.
+        upto (optional) : int
+            Index for the layer upto (and including) which we will evaluate
+            the model. 0-indexed.
+
+        Returns
+        -------
+        y : Tensor, shape (batch_size, out_dim)
+            Batch output.
+        """
+        x.volatile = True
+        return self.forward(x, X, upto)
+
     def fit(self):
         raise NotImplementedError('must be implemented by subclass')
 
@@ -75,7 +108,11 @@ class MLKNClassifier(baseMLKN):
     MLKN classifier dedicated for layerwise training using method proposed
     in https://arxiv.org/abs/1802.03774. This feature can be tedious to
     implement in standard PyTorch since a lot of details need to be taken care
-    of. If one wants a MLKN classifier trained with standard backpropagation,
+    of. In this current version, we are substituting the alignment loss
+    for hidden layers with the standard MSE loss because the former seems to
+    mess things up for the autograd of PyTorch, we are still debugging that.
+
+    If one wants a MLKN classifier trained with standard backpropagation,
     use MLKNGeneral instead, the setup for training would be much simpler for
     MLKNGeneral and many more loss functions are supported.
     """
@@ -88,6 +125,24 @@ class MLKNClassifier(baseMLKN):
     def __init__(self):
         super(MLKNClassifier, self).__init__()
         self._optimizer_counter = 0
+
+    def add_loss(self, loss_fn):
+        """
+        Specify loss function for the last layer. We recommend using
+        CrossEntropyLoss (CrossEntropyLoss(output, y), in PyTorch, is
+        equivalent to NLLLoss(logsoftmax(output), y), where logsoftmax =
+        torch.nn.LogSoftmax(dim=1) for output Tensor of shape
+        (n_example, n_class)). Base of the log functions in these operations
+        is e.
+
+        Using other loss functions may cause unexpected behaviors since
+        we have only tested the model with CrossEntropyLoss.
+
+        Parameters
+        ----------
+        loss_fn : a torch loss object
+        """
+        setattr(self, 'output_loss_fn', loss_fn)
 
     def add_optimizer(self, optimizer):
         """
@@ -102,9 +157,64 @@ class MLKNClassifier(baseMLKN):
         self._optimizer_counter += 1
         # optimizer indexing : optimizer 0 is the optimizer for layer 0
 
-    def fit(self, n_epoch, reg_coef, batch_size, x, X, y, n_class):
+    def predict(self, x, X):
         """
-        y : Variable of shape (n_example, 1)
+        Get predictions from the classifier.
+
+        Parameters
+        ----------
+
+        x : Tensor, shape (batch_size, dim)
+            Batch. Must be a leaf Variable.
+
+        X : Tensor, shape (n_example, dim)
+            Training set.
+
+        Returns
+        -------
+        y_pred : Tensor, shape (batch_size,)
+            Predicted labels for the batch.
+        """
+        y_raw = self.forward_volatile(x, X)
+        _, y_pred = torch.max(y_raw, dim=1)
+        return y_pred
+
+    def get_error(self, y_pred, y):
+        """
+        Compute prediction error rate.
+
+        Parameters
+        ----------
+
+        y_pred : Tensor, shape (batch_size,)
+            Predicted labels.
+
+        y : Tensor, shape (batch_size,)
+            True labels.
+
+        Returns
+        -------
+        err : scalar (or wrapped in a Variable, if one of y or y_pred is)
+            Error rate.
+        """
+        assert y_pred.shape==y.shape
+        y_pred = y_pred.type_as(y)
+        err = (y_pred!=y).sum().type(torch.FloatTensor).div_(y.shape[0])
+        return err
+
+    def fit(self, n_epoch, batch_size, x, X, y, n_class):
+        """
+        Parameters
+        ----------
+
+        x : Tensor, shape (batch_size, dim)
+            Batch.
+
+        X : Tensor, shape (n_example, dim)
+            Training set.
+
+        y : Variable of shape (n_example, 1) or (n_example,)
+            Categorical labels for the batch.
         """
         assert self._optimizer_counter==self._layer_counter
 
@@ -129,20 +239,29 @@ class MLKNClassifier(baseMLKN):
 
             optimizer = getattr(self, 'optimizer'+str(i))
             optimizer.param_groups[0]['params'] = list(layer.parameters())
-            # TODO: why is optimizer.param_groups a list containing a dict
-            # rather than a dict?
 
         for param in self.parameters(): param.requires_grad=False # freeze all
         # layers
 
         # train the representation-learning layers #############################
+        assert len(y.shape) <= 2
+        if len(y.shape)==1: y.unsqueeze_(dim=1)
+        # NOTE: ideal_gram requires label tensor to be of shape (n, 1)
+
         ideal_gram = K.ideal_gram(y, y, n_class)
+        ideal_gram=ideal_gram.type(torch.cuda.FloatTensor)\
+        if ideal_gram.is_cuda else ideal_gram.type(torch.FloatTensor)
+        # NOTE: required by MSELoss
+
+        loss_fn = torch.nn.MSELoss()
         for i in range(self._layer_counter-1):
             optimizer = getattr(self, 'optimizer'+str(i))
             next_layer = getattr(self, 'layer'+str(i+1))
             layer = getattr(self, 'layer'+str(i))
-            assert isinstance(next_layer, kerLinear) # TODO: see if
-            # torch.nn.Linear can pass this and ban it if it can because each
+
+            assert isinstance(next_layer, kerLinear)
+            # NOTE:
+            # torch.nn.Linear cannot pass this. We do this check because each
             # layer uses the kernel function from the next layer to calculate
             # loss but nn.Linear does not have a kernel so it cannot be the
             # next layer for any layer
@@ -151,24 +270,35 @@ class MLKNClassifier(baseMLKN):
             for _ in range(n_epoch[i]):
                 # compute loss
                 output = self.forward(x, X, upto=i)
-                # output.register_hook(print) # NOTE: see note, there is a
-                # problem here
+                # output.register_hook(print) # NOTE: (for alignment)
+                # see note, there is a problem here
+                #########
                 # print('output', output) # NOTE: layer0 initial feedforward passed
+                #########
                 gram = K.kerMap(
                     output,
                     output,
                     next_layer.sigma
                     )
+                #########
                 # print(gram) # NOTE: initial feedforward passed
+                #########
+                # gram.register_hook(print) # NOTE: (for alignment)
+                # gradient here is off by *0.5: hand-calculated grad * 2 =
+                # pytorch grad
 
-                # gram.register_hook(print) # NOTE: gradient here is off by *0.5:
-                # hand-calculated grad * 2 = pytorch grad
-
+                # BUG: using alignment loss causes gradient problem, see
+                # comments from past commits
+                """
                 alignment = K.alignment(ideal_gram, gram)
                 # print(alignment) # NOTE: initial feedforward passed
-                loss = -alignment # TODO: add regularization terms
-                # mse = torch.nn.MSELoss(size_average=False)
-                # loss = mse(ideal_gram, gram)
+                loss = -alignment
+                """
+
+                loss = loss_fn(gram, ideal_gram) # NOTE: L2 regulatization
+                # is taken care of by setting the weight_decay param in the
+                # optimizer, see
+                # https://discuss.pytorch.org/t/simple-l2-regularization/139
 
                 print(_, loss.data[0])
 
@@ -179,10 +309,9 @@ class MLKNClassifier(baseMLKN):
                 #########
                 # check gradient
                 # print('weight', layer.weight)
-                print('gradient', layer.weight.grad.data) # NOTE: see note
+                # print('gradient', layer.weight.grad.data) # NOTE: see note
                 #########
 
-                # needs to be differentiated at a time
                 optimizer.step()
 
             for param in layer.parameters(): param.requires_grad=False # freeze
@@ -195,42 +324,26 @@ class MLKNClassifier(baseMLKN):
         optimizer = getattr(self, 'optimizer'+str(i))
         layer = getattr(self, 'layer'+str(i))
 
-        loss_fn = torch.nn.CrossEntropyLoss() # TODO: allow user specification
-        # NOTE: CrossEntropyLoss combines softmax and crossentropy
-
-        # loss_fn = torch.nn.NLLLoss() # NOTE: bases of the log used in NLLLoss and
-        # CrossEntropyLoss are both e
-        # logsoftmax = torch.nn.LogSoftmax(dim=1) # NOTE: softmax on dimension 1
-        # for output Tensor of shape (n_example, n_class)
-
-        y = y.type(torch.LongTensor) # TODO: support GPU
-
-        assert len(y.shape) <= 2
         if len(y.shape)==2: y.squeeze_(dim=1)
-        # NOTE: CrossEntropyLoss and NLLLoss require label tensor to be of
+        # NOTE: CrossEntropyLoss requires label tensor to be of
         # shape (n)
+
+        y=y.type(torch.cuda.LongTensor)\
+        if y.is_cuda else y.type(torch.LongTensor)
+        # NOTE: required by CrossEntropyLoss
 
         for param in layer.parameters(): param.requires_grad=True # unfreeze
         for _ in range(n_epoch[i]):
             # compute loss
             output = self.forward(x, X, upto=i)
             # print(output) # NOTE: layer1 initial feedforward passed
-            ######### NLLLoss
-            # output_prob = logsoftmax(output) # log output probability
-            # print(output_prob) # NOTE: initial feedforward passed
-            # loss = loss_fn(output_prob, y)# TODO: add regularization terms
-            # print(loss) # NOTE: initial feedforward passed
-            #########
 
-            ######### CrossEntropyLoss
-            loss = loss_fn(output, y)
+            loss = self.output_loss_fn(output, y)
             # print(loss) # NOTE: initial feedforward passed
-            #########
-
-            # define crossentropy loss to test gradient
-            # loss = output_prob.mul(K.one_hot(y.unsqueeze(dim=1), n_class)).sum()/2
-            # NOTE: this calculation results in the same gradient as that
-            # calculated by autograd
+            # NOTE: L2 regulatization
+            # is taken care of by setting the weight_decay param in the
+            # optimizer, see
+            # https://discuss.pytorch.org/t/simple-l2-regularization/139
 
             print(_, loss.data[0])
 
@@ -239,41 +352,20 @@ class MLKNClassifier(baseMLKN):
             loss.backward()
 
             #########
+            # define crossentropy loss to test gradient
+            # loss = output_prob.mul(K.one_hot(y.unsqueeze(dim=1), n_class)).sum()/2
+            # NOTE: this calculation results in the same gradient as that
+            # calculated by autograd using CrossEntropyLoss as loss_fn
+
             # check gradient
             # print('weight', layer.weight)
             # print('gradient', layer.weight.grad.data)
             # print('bias gradient', layer.bias.grad.data)
-            break
             #########
 
             optimizer.step()
         for param in layer.parameters(): param.requires_grad=False # freeze
         # this layer again
-
-    def fit_bp(self, n_epoch, reg_coef, batch_size, x, X, y, n_class):
-        loss_fn = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.SGD(self.parameters(), lr=100, momentum=.9)
-        for _ in range(n_epoch[0]):
-            output = self.forward(x, X)
-
-            y = y.type(torch.LongTensor).view(-1,)
-            ######### CrossEntropyLoss
-            loss = loss_fn(output, y)
-
-
-            print(_, loss.data[0])
-
-            # train the layer
-            optimizer.zero_grad()
-            loss.backward()
-
-            #########
-            # check gradient
-            # print('weight', layer.weight)
-            # print('gradient', layer.weight.grad.data)
-            # print('bias gradient', layer.bias.grad.data)
-            #########
-            optimizer.step()
 
 if __name__=='__main__':
     pass

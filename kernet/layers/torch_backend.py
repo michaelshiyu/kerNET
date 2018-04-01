@@ -42,6 +42,9 @@ def gaussianKer(x, y, sigma):
 
     gram = y.sub(x.unsqueeze(1)).pow(2).sum(dim=-1).mul(-1./(2*sigma**2)).exp()
     # gram = y.sub(x.unsqueeze(1)).pow(2).sum(dim=-1).mul(-sigma).exp()
+    # TODO: this thing eats up memory like crazy, for those intermediate values
+    # that will not be used for gradient calculations, use in_place operations
+    # instead
 
     return gram
 
@@ -90,32 +93,33 @@ def one_hot(y, n_class):
     Returns
     -------
     y_onehot : Tensor (n_example, n_class)
+        dtype of y_onehot is consistent with that of y.
     """
     # NOTE: this function is not differentiable
     assert n_class >= 2
     if len(y.shape)==1: y.unsqueeze_(0)
     assert len(y.shape)==2
+    if isinstance(y, Variable): y = y.data
+    # NOTE: y cannot be a Variable because scatter_ does not support autograd
 
-    if isinstance(y, Variable): y = y.data # TODO: do we need diff wrt y?
-    # BUG y cannot be a Variable
-    # assert torch.max(y)+1 <= n_class # BUG: bool(Variable) is ambiguous
+    original_dtype = y.type()
 
-    y = y.type(torch.LongTensor) # scatter_ requires index to be
-    # torch.LongTensor type, if y is of the correct type, this function
-    # does nothing and returns the original object
-    # BUG: y could be on GPU
+    y=y.type(torch.cuda.LongTensor) if y.is_cuda else y.type(torch.LongTensor)
+    # NOTE: this is because scatter_ only supports LongTensor for its index param
+
+    assert torch.max(y)+1 <= n_class
 
     n_example = y.shape[0]
 
     y_onehot = torch.FloatTensor(n_example, n_class).fill_(0)
     ones = torch.FloatTensor(n_example, 1).fill_(1)
+
     y_onehot.scatter_(1, y, ones)
-    # return y_onehot
-    return Variable(y_onehot, requires_grad=False)
-    # BUG: if this is not Variable, the following
+
+    return Variable(y_onehot.type(original_dtype), requires_grad=False)
+    # NOTE: (for alignment) if this is not Variable, the following
     # calculation for F inner prod cannot be done since .mul only supports
     # Tensor*Tensor or Var*Var
-    # BUG: if original y is on GPU, y_onehot should also be on GPU
 
 def ideal_gram(y1, y2, n_class):
     """
@@ -174,7 +178,9 @@ def alignment(gram1, gram2):
     -------
     alignment : scalar
     """
-    # TODO: this is probably not differentiable
+    # BUG: this loss function causes abnormal optimization behaviors, see
+    # comments in past commits
+
     alignment = frobenius_inner_prod(gram1, gram2) /\
         m.sqrt(frobenius_inner_prod(gram1, gram1) *
         frobenius_inner_prod(gram2, gram2))

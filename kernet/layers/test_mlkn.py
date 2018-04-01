@@ -76,28 +76,35 @@ if __name__=='__main__':
         dtype = torch.cuda.FloatTensor
 
     X = Variable(torch.from_numpy(x).type(dtype), requires_grad=False)
-    y = Variable(torch.from_numpy(y).type(dtype), requires_grad=False)
+    Y = Variable(torch.from_numpy(y).type(dtype), requires_grad=False)
     new_index = torch.randperm(X.shape[0])
-    X, y = X[new_index], y[new_index].view(-1, 1)
+    X, Y = X[new_index].clone(), Y[new_index].clone()
+    # NOTE: cloning turns X, Y into leaf variables
 
-    """
-    index = int(np.ceil(x.shape[0] * .5))
-    x_train = X[:index]
-    y_train = y[:index]
-    x_test = X[index:]
-    y_test = y[index:]
-    """
+    index = 50
+    x_train, y_train = X[:index].clone(), Y[:index].clone()
+    x_test, y_test = X[index:].clone(), Y[index:].clone()
 
     # x = Variable(torch.FloatTensor([[0, 7], [1, 2]]).type(dtype), requires_grad=False)
     # X = Variable(torch.FloatTensor([[1, 2], [3, 4]]).type(dtype), requires_grad=False)
     # y = Variable(torch.FloatTensor([[1], [1]]).type(dtype), requires_grad=False)
-    for lr1 in [1e-3]:
-        for sigma2 in [.1]:
-            mlkn = MLKNClassifier()
-            mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=15, sigma=5, bias=True))
-            mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=3, sigma=.1, bias=True))
+    mlkn = MLKNClassifier()
+    mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=15, sigma=5, bias=True))
+    mlkn.add_layer(kerLinear(ker_dim=X.shape[0], out_dim=3, sigma=.1, bias=True))
 
-            mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=lr1))
-            mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=1e-3))
+    mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=0.1))
+    mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=.1))
 
-            mlkn.fit_bp(n_epoch=(1500, 100), batch_size=50, x=X, X=X, reg_coef=.1, y=y, n_class=int(n_class))
+    mlkn.add_loss(torch.nn.CrossEntropyLoss())
+
+    mlkn.fit(
+        n_epoch=(10, 10),
+        batch_size=50,
+        x=x_train,
+        X=X,
+        y=y_train,
+        n_class=3
+        )
+    y_pred = mlkn.predict(x_test, X)
+    err = mlkn.get_error(y_pred, y_test)
+    print('{:.2f}%'.format(err.data[0] * 100))
