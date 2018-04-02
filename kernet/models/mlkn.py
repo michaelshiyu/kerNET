@@ -1,19 +1,21 @@
 # -*- coding: utf-8 -*-
 # torch 0.3.1
+
 from __future__ import print_function, division
 
 import torch
 from torch.autograd import Variable
-import torch_backend as K # TODO: relative import
-from kerlinear import kerLinear
+
+import backend as K
+from layers.kerlinear import kerLinear
 
 # TODO: check GPU compatibility: move data and modules on GPU, see, for example,
 # https://github.com/pytorch/pytorch/issues/584
 # TODO: using multiple devices, see
 # http://pytorch.org/docs/0.3.1/notes/multiprocessing.html and nn.DataParallel
 # TODO: check numerical grad for the toy example
-
-# TODO: relative import; tests
+# TODO: tests
+# TODO: python2 compatibility
 
 torch.manual_seed(1234)
 

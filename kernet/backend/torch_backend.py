@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 # torch 0.3.1
-from __future__ import division, print_function
-import math as m
 
+from __future__ import division, print_function
+
+import math as m
 import torch
 from torch.autograd import Variable
 

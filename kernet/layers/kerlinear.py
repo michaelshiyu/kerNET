@@ -3,7 +3,8 @@
 
 import torch
 from torch.autograd import Variable
-import torch_backend as K # TODO: relative import
+
+import backend as K
 
 torch.manual_seed(1234)
 
