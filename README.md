@@ -9,8 +9,8 @@ Building a network with kernel machines here is as straightforward as building a
 For now, the project is very new and fairly unstable. We have much to add to it and we are also working on optimizing what's already there. Major functionalities have been tested (on CPU) under the following setup:
 - Python 3
 - PyTorch 0.3.1
-- Numpy 1.14.1
-- Scikit-Learn 0.19.1
+- NumPy 1.14.1
+- scikit-learn 0.19.1
 
 Currently, the best way to work with this API is by forking it or via ```git clone```. Hope you enjoy it and any suggestion or contribution would be greatly appreciated!
 
