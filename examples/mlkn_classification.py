@@ -55,6 +55,8 @@ if __name__=='__main__':
         kerLinear(ker_dim=x_train.shape[0], out_dim=n_class, sigma=.1, bias=True)
         )
     # add optimizer for each layer, this works with any torch.optim.Optimizer
+    # note that this model is trained with the proposed layerwise training
+    # method by default
     mlkn.add_optimizer(
         torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=0.1)
         )

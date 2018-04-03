@@ -215,8 +215,9 @@ class MLKNClassifier(baseMLKN):
             x_test = x_test[0].clone() # NOTE: clone turns x_test into a leaf
             # Variable, which is required to set the volatile flag
 
-            # TODO: figure out why when only one set is sent to get_batch,
-            # we need to use x_test[0] but not directly x_test
+            # NOTE: when only one set is sent to get_batch,
+            # we need to use x_test[0] because no automatic unpacking has
+            # been done by Python
             y_raw = self.forward_volatile(x_test, X)
 
             _, y_pred = torch.max(y_raw, dim=1)
