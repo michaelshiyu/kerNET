@@ -50,7 +50,25 @@ class baseMLKN(torch.nn.Module):
         self._layer_counter += 1
         # layer indexing : layer 0 is closest to input
 
-    def forward(self, x, X, upto=None):
+    def add_loss(self, loss_fn):
+        """
+        Specify loss function for the last layer. We recommend using
+        CrossEntropyLoss (CrossEntropyLoss(output, y), in PyTorch, is
+        equivalent to NLLLoss(logsoftmax(output), y), where logsoftmax =
+        torch.nn.LogSoftmax(dim=1) for output Tensor of shape
+        (n_example, n_class)). Base of the log functions in these operations
+        is e.
+
+        Using other loss functions may cause unexpected behaviors since
+        we have only tested the model with CrossEntropyLoss.
+
+        Parameters
+        ----------
+        loss_fn : a torch loss object
+        """
+        setattr(self, 'output_loss_fn', loss_fn)
+
+    def _forward(self, x, X, upto=None):
         """
         Feedforward upto layer 'upto'. If 'upto' is not passed,
         this works as the standard forward function in PyTorch.
@@ -90,7 +108,7 @@ class baseMLKN(torch.nn.Module):
 
         return y
 
-    def forward_volatile(self, x, X, upto=None):
+    def _forward_volatile(self, x, X, upto=None):
         """
         Feedforward upto layer 'upto' in volatile mode. Use for inference. See
         http://pytorch.org/docs/0.3.1/notes/autograd.html.
@@ -115,7 +133,56 @@ class baseMLKN(torch.nn.Module):
             Batch output.
         """
         x.volatile = True
-        return self.forward(x, X, upto)
+        return self._forward(x, X, upto)
+
+    def evaluate(self, X_test, X, batch_size=None):
+        """
+        Feed X_test into the network and get raw output.
+
+        Parameters
+        ----------
+
+        X_test : Tensor, shape (n1_example, dim)
+            Set to be evaluated.
+
+        X : Tensor, shape (n_example, dim)
+            Training set.
+
+        Returns
+        -------
+        Y_test : Tensor, shape (n1_example, out_dim)
+            Raw output from the network.
+        """
+        if not batch_size: batch_size=X_test.shape[0]
+
+        i = self._layer_counter-1
+        layer = getattr(self, 'layer'+str(i))
+        out_dim = layer.weight.shape[0] # TODO: strangely, nn.Linear stores
+        # weights as [out_dim, in_dim]...or am I making a mistake somewhere
+
+        Y_test = torch.cuda.FloatTensor(X_test.shape[0], out_dim) if \
+        X_test.is_cuda else torch.FloatTensor(X_test.shape[0], out_dim)
+
+        i = 0
+        for x_test in K.get_batch(X_test, batch_size=batch_size):
+            x_test = x_test[0].clone() # NOTE: clone turns x_test into a leaf
+            # Variable, which is required to set the volatile flag
+
+            # NOTE: when only one set is sent to get_batch,
+            # we need to use x_test[0] because no automatic unpacking has
+            # been done by Python
+            y_test = self._forward_volatile(x_test, X)
+
+            if x_test.shape[0]<batch_size: # last batch
+                Y_test[i*batch_size:] = y_test.data[:]
+                break
+            Y_test[i*batch_size: (i+1)*batch_size] = y_test.data[:]
+            i += 1
+
+        return Variable(Y_test, requires_grad=False)
+        # NOTE: this is to make the type of Y_pred consistent with X_test since
+        # X_test must be a Variable
+
 
     def fit(self):
         raise NotImplementedError('must be implemented by subclass')
@@ -150,24 +217,6 @@ class MLKNGreedy(baseMLKN):
     def __init__(self):
         super(MLKNGreedy, self).__init__()
         self._optimizer_counter = 0
-
-    def add_loss(self, loss_fn):
-        """
-        Specify loss function for the last layer. We recommend using
-        CrossEntropyLoss (CrossEntropyLoss(output, y), in PyTorch, is
-        equivalent to NLLLoss(logsoftmax(output), y), where logsoftmax =
-        torch.nn.LogSoftmax(dim=1) for output Tensor of shape
-        (n_example, n_class)). Base of the log functions in these operations
-        is e.
-
-        Using other loss functions may cause unexpected behaviors since
-        we have only tested the model with CrossEntropyLoss.
-
-        Parameters
-        ----------
-        loss_fn : a torch loss object
-        """
-        setattr(self, 'output_loss_fn', loss_fn)
 
     def add_optimizer(self, optimizer):
         """
@@ -246,7 +295,7 @@ class MLKNGreedy(baseMLKN):
                     # NOTE: required by CosineSimilarity
 
                     # get output ###############################################
-                    output = self.forward(x, X, upto=i)
+                    output = self._forward(x, X, upto=i)
                     # output.register_hook(print)
                     # print('output', output) # NOTE: layer0 initial feedforward
                     # passed
@@ -291,8 +340,6 @@ class MLKNGreedy(baseMLKN):
             for param in layer.parameters(): param.requires_grad=False # freeze
             # this layer again
 
-
-
     def _fit_output(self, n_epoch, X, Y, batch_size=None, shuffle=False):
         """
         Fit the last layer.
@@ -318,9 +365,18 @@ class MLKNGreedy(baseMLKN):
         # NOTE: CrossEntropyLoss requires label tensor to be of
         # shape (n)
 
-        Y=Y.type(torch.cuda.LongTensor)\
-        if Y.is_cuda else Y.type(torch.LongTensor)
-        # NOTE: required by CrossEntropyLoss
+        # TODO: what about multi-D MSELoss or CrossEntropyLoss?
+
+        if isinstance(self.output_loss_fn, torch.nn.CrossEntropyLoss):
+            Y=Y.type(torch.cuda.LongTensor)\
+            if Y.is_cuda else Y.type(torch.LongTensor)
+            # NOTE: required by CrossEntropyLoss
+
+        elif isinstance(self.output_loss_fn, torch.nn.MSELoss):
+            Y=Y.type(torch.cuda.FloatTensor)\
+            if Y.is_cuda else Y.type(torch.FloatTensor)
+            # NOTE: required by MSELoss
+
 
         for param in layer.parameters(): param.requires_grad=True # unfreeze
         for _ in range(n_epoch[i]):
@@ -332,7 +388,7 @@ class MLKNGreedy(baseMLKN):
                 ):
                 __ += 1
                 # compute loss
-                output = self.forward(x, X, upto=i)
+                output = self._forward(x, X, upto=i)
                 # print(output) # NOTE: layer1 initial feedforward passed
 
                 loss = self.output_loss_fn(output, y)
@@ -382,7 +438,6 @@ class MLKNClassifier(MLKNGreedy):
     """
     def __init__(self):
         super(MLKNClassifier, self).__init__()
-        self._optimizer_counter = 0
 
     def predict(self, X_test, X, batch_size=None):
         """
@@ -399,33 +454,14 @@ class MLKNClassifier(MLKNGreedy):
 
         Returns
         -------
-        Y_pred : Tensor, shape (batch_size,)
+        Y_pred : Tensor, shape (n1_example,)
             Predicted labels.
         """
         if not batch_size: batch_size=X_test.shape[0]
-        Y_pred = torch.cuda.LongTensor(X_test.shape[0],) if X_test.is_cuda\
-        else torch.LongTensor(X_test.shape[0],)
-        i = 0
-        for x_test in K.get_batch(X_test, batch_size=batch_size):
-            x_test = x_test[0].clone() # NOTE: clone turns x_test into a leaf
-            # Variable, which is required to set the volatile flag
+        Y_raw = self.evaluate(X_test, X, batch_size=batch_size)
+        _, Y_pred = torch.max(Y_raw, dim=1)
 
-            # NOTE: when only one set is sent to get_batch,
-            # we need to use x_test[0] because no automatic unpacking has
-            # been done by Python
-            y_raw = self.forward_volatile(x_test, X)
-
-            _, y_pred = torch.max(y_raw, dim=1)
-
-            if x_test.shape[0]<batch_size: # last batch
-                Y_pred[i*batch_size:] = y_pred.data[:]
-                break
-            Y_pred[i*batch_size: (i+1)*batch_size] = y_pred.data[:]
-            i += 1
-
-        return Variable(Y_pred, requires_grad=False)
-        # NOTE: this is to make the type of Y_pred consistent with X_test since
-        # X_test must be a Variable
+        return Y_pred
 
     def get_error(self, y_pred, y):
         """

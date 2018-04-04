@@ -22,8 +22,8 @@ if __name__=='__main__':
     This example demonstrates how a MLKN classifier works. Everything in here
     strictly follows this paper: https://arxiv.org/pdf/1802.03774.pdf.
     """
-    # x, y = load_breast_cancer(return_X_y=True)
-    x, y = load_digits(return_X_y=True)
+    x, y = load_breast_cancer(return_X_y=True)
+    # x, y = load_digits(return_X_y=True)
     # x, y = load_iris(return_X_y=True)
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could
