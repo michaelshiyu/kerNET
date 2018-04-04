@@ -26,6 +26,15 @@ if __name__=='__main__':
     x, y = load_digits(return_X_y=True)
     # x, y = load_iris(return_X_y=True)
 
+    # for other Multiple Kernel Learning benchmarks used in the paper, you could
+    # do:
+    # x = np.load('../kernet/datasets/mkl/name_of_dataset.npy')
+    # y = np.load('../kernet/datasets/mkl/name_of_dataset_labels.npy')
+    # note that for some of the datasets, the results reported are only on a
+    # subset of the data with size given in Table 1. This is to keep consistency
+    # with the original paper that reported most of the results.
+    # A random subset is chosen at each one of the 20 runs.
+
     # standardize features to zero-mean and unit-variance
     normalizer = StandardScaler()
     x = normalizer.fit_transform(x)

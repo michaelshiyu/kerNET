@@ -182,38 +182,11 @@ class MLKNGreedy(baseMLKN):
         self._optimizer_counter += 1
         # optimizer indexing : optimizer 0 is the optimizer for layer 0
 
-    def fit(self, n_epoch, X, Y, n_class, batch_size=None, shuffle=False):
+    def _compile(self):
         """
-        Parameters
-        ----------
-        n_epoch : tuple
-            The number of epochs for each layer. If the length of the tuple is
-            greater than the number of the layers, use n_epoch[:n_layer].
-
-        X : Tensor, shape (n_example, dim)
-            Training set.
-
-        Y : Variable of shape (n_example, 1) or (n_example,)
-            Categorical labels for the set.
-
-        batch_size (optional) : int
-            If not specified, use full mode.
-
-        shuffle (optional) : bool
-            Shuffle the data at each epoch.
+        Compile the model.
         """
-        # TODO: now uses SGD or batch GD: update weights and empty grad per batch.
-        # Give option on using full GD: accumulate grad from each batch and
-        # only update once per epoch
-
         assert self._optimizer_counter==self._layer_counter
-        assert len(Y.shape) <= 2 # NOTE: this model only supports hard class labels
-        assert X.shape[0]==Y.shape[0]
-
-        if not batch_size: batch_size = X.shape[0]
-        n_batch = X.shape[0] // batch_size
-        last_batch = bool(X.shape[0] % batch_size)
-
         # assign each optimizer to its layer ###################################
         for i in range(self._optimizer_counter):
             layer = getattr(self, 'layer'+str(i))
@@ -222,6 +195,22 @@ class MLKNGreedy(baseMLKN):
 
         for param in self.parameters(): param.requires_grad=False # freeze all
         # layers
+
+    def _fit_rep_learners(self, n_epoch, X, Y, n_group, batch_size=None, shuffle=False):
+        """
+        Fit the representation learning layers, i.e., all layers but the last.
+        """
+        # TODO: now uses SGD or batch GD: update weights and empty grad per batch.
+        # Give option on using full GD: accumulate grad from each batch and
+        # only update once per epoch
+
+        assert len(Y.shape) <= 2
+        # NOTE: this model only supports hard class labels
+        assert X.shape[0]==Y.shape[0]
+
+        if not batch_size: batch_size = X.shape[0]
+        n_batch = X.shape[0] // batch_size
+        last_batch = bool(X.shape[0] % batch_size)
 
         # train the representation-learning layers #############################
         if len(Y.shape)==1: Y=Y.view(-1, 1)
@@ -251,7 +240,7 @@ class MLKNGreedy(baseMLKN):
                     ):
                     __ += 1
                     # get ideal gram matrix ####################################
-                    ideal_gram = K.ideal_gram(y, y, n_class)
+                    ideal_gram = K.ideal_gram(y, y, n_group)
                     ideal_gram=ideal_gram.type(torch.cuda.FloatTensor)\
                     if ideal_gram.is_cuda else ideal_gram.type(torch.FloatTensor)
                     # NOTE: required by CosineSimilarity
@@ -301,6 +290,24 @@ class MLKNGreedy(baseMLKN):
             print('\n' + '#'*10 + '\n')
             for param in layer.parameters(): param.requires_grad=False # freeze
             # this layer again
+
+
+
+    def _fit_output(self, n_epoch, X, Y, batch_size=None, shuffle=False):
+        """
+        Fit the last layer.
+        """
+        # TODO: now uses SGD or batch GD: update weights and empty grad per batch.
+        # Give option on using full GD: accumulate grad from each batch and
+        # only update once per epoch
+
+        assert len(Y.shape) <= 2 # NOTE: this model only supports hard class labels
+        assert X.shape[0]==Y.shape[0]
+
+        if not batch_size: batch_size = X.shape[0]
+        n_batch = X.shape[0] // batch_size
+        last_batch = bool(X.shape[0] % batch_size)
+
 
         # train the last layer as a RBFN classifier ############################
         i = self._layer_counter-1
@@ -362,7 +369,7 @@ class MLKNGreedy(baseMLKN):
         for param in layer.parameters(): param.requires_grad=False # freeze
         # this layer again
 
-class MLKNClassifier(baseMLKN):
+class MLKNClassifier(MLKNGreedy):
     """
     MLKN classifier dedicated for layerwise training using method proposed
     in https://arxiv.org/abs/1802.03774. This feature can be tedious to
@@ -371,48 +378,11 @@ class MLKNClassifier(baseMLKN):
 
     If one wants a MLKN classifier trained with standard backpropagation,
     use MLKN instead, the setup for training would be much simpler for
-    MLKNGeneral and many more loss functions are supported.
+    MLKN and many more loss functions are supported.
     """
-    # TODO: this model uses kerLinear or nn.Linear (build thickLinear to make
-    # kernel-neural hybrid simpler (note: no kernel should be closer to input
-    # than neural)) layers only and all layers
-    # should be trained as RBFNs. Users should be encouraged to use the
-    # layerwise functionality of this model. Build another model that allows
-    # passing in sklearn.SVM objects in order to train the last layer as a SVM
     def __init__(self):
         super(MLKNClassifier, self).__init__()
         self._optimizer_counter = 0
-
-    def add_loss(self, loss_fn):
-        """
-        Specify loss function for the last layer. We recommend using
-        CrossEntropyLoss (CrossEntropyLoss(output, y), in PyTorch, is
-        equivalent to NLLLoss(logsoftmax(output), y), where logsoftmax =
-        torch.nn.LogSoftmax(dim=1) for output Tensor of shape
-        (n_example, n_class)). Base of the log functions in these operations
-        is e.
-
-        Using other loss functions may cause unexpected behaviors since
-        we have only tested the model with CrossEntropyLoss.
-
-        Parameters
-        ----------
-        loss_fn : a torch loss object
-        """
-        setattr(self, 'output_loss_fn', loss_fn)
-
-    def add_optimizer(self, optimizer):
-        """
-        Configure layerwise training. One needs to designate an optimizer for
-        each layer. The ordering for optimizers follows that of the layers.
-        User can pass any iterable to the non-optional 'params' parameter
-        of the optimizer object and this will be later overwritten by this
-        function.
-        """
-        assert isinstance(optimizer, torch.optim.Optimizer)
-        setattr(self, 'optimizer'+str(self._optimizer_counter), optimizer)
-        self._optimizer_counter += 1
-        # optimizer indexing : optimizer 0 is the optimizer for layer 0
 
     def predict(self, X_test, X, batch_size=None):
         """
@@ -494,171 +464,31 @@ class MLKNClassifier(baseMLKN):
         Y : Variable of shape (n_example, 1) or (n_example,)
             Categorical labels for the set.
 
+        n_class : int
+
         batch_size (optional) : int
             If not specified, use full mode.
 
         shuffle (optional) : bool
             Shuffle the data at each epoch.
         """
-        # TODO: now uses SGD or batch GD: update weights and empty grad per batch.
-        # Give option on using full GD: accumulate grad from each batch and
-        # only update once per epoch
+        self._compile()
+        self._fit_rep_learners(
+            n_epoch,
+            X, Y,
+            n_class,
+            batch_size=batch_size,
+            shuffle=shuffle
+            )
+        print('Representation-learning layers trained.')
 
-        assert self._optimizer_counter==self._layer_counter
-        assert len(Y.shape) <= 2 # NOTE: this model only supports hard class labels
-        assert X.shape[0]==Y.shape[0]
-
-        if not batch_size: batch_size = X.shape[0]
-        n_batch = X.shape[0] // batch_size
-        last_batch = bool(X.shape[0] % batch_size)
-
-        # assign each optimizer to its layer ###################################
-        for i in range(self._optimizer_counter):
-            layer = getattr(self, 'layer'+str(i))
-            optimizer = getattr(self, 'optimizer'+str(i))
-            optimizer.param_groups[0]['params'] = list(layer.parameters())
-
-        for param in self.parameters(): param.requires_grad=False # freeze all
-        # layers
-
-        # train the representation-learning layers #############################
-        if len(Y.shape)==1: Y=Y.view(-1, 1)
-        # NOTE: ideal_gram() requires label tensor to be of shape
-        # (n, 1)
-        loss_fn = torch.nn.CosineSimilarity() # NOTE: equivalent to alignment
-        for i in range(self._layer_counter-1):
-            optimizer = getattr(self, 'optimizer'+str(i))
-            next_layer = getattr(self, 'layer'+str(i+1))
-            layer = getattr(self, 'layer'+str(i))
-
-            assert isinstance(next_layer, kerLinear)
-            # NOTE:
-            # torch.nn.Linear cannot pass this. We do this check because each
-            # layer uses the kernel function from the next layer to calculate
-            # loss but nn.Linear does not have a kernel so it cannot be the
-            # next layer for any layer
-
-            for param in layer.parameters(): param.requires_grad=True # unfreeze
-
-            for _ in range(n_epoch[i]):
-                __ = 0
-                for x, y in K.get_batch(
-                    X, Y,
-                    batch_size=batch_size,
-                    shuffle=shuffle
-                    ):
-                    __ += 1
-                    # get ideal gram matrix ####################################
-                    ideal_gram = K.ideal_gram(y, y, n_class)
-                    ideal_gram=ideal_gram.type(torch.cuda.FloatTensor)\
-                    if ideal_gram.is_cuda else ideal_gram.type(torch.FloatTensor)
-                    # NOTE: required by CosineSimilarity
-
-                    # get output ###############################################
-                    output = self.forward(x, X, upto=i)
-                    # output.register_hook(print)
-                    # print('output', output) # NOTE: layer0 initial feedforward
-                    # passed
-
-                    gram = K.kerMap(
-                        output,
-                        output,
-                        next_layer.sigma
-                        )
-                    # print(gram) # NOTE: initial feedforward passed
-                    # gram.register_hook(print) # NOTE: (for torch_backend.alignment)
-                    # gradient here is inconsistent using the alignment loss from
-                    # torch_backend: hand-calculated_grad*n_example =
-                    # pytorch_grad
-
-                    # compute loss and optimizer takes a step###################
-                    loss = -loss_fn(gram.view(1, -1), ideal_gram.view(1, -1))
-                    # NOTE: negative alignment
-                    # NOTE: L2 regulatization
-                    # is taken care of by setting the weight_decay param in the
-                    # optimizer, see
-                    # https://discuss.pytorch.org/t/simple-l2-regularization/139
-
-                    print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
-                        _+1, n_epoch[i], __, n_batch+int(last_batch),
-                        'Alignment',
-                        -loss.data[0]
-                        ))
-
-                    # train the layer
-                    optimizer.zero_grad()
-                    loss.backward()
-
-                    #########
-                    # check gradient
-                    # print('weight', layer.weight)
-                    # print('gradient', layer.weight.grad.data)
-                    #########
-
-                    optimizer.step()
-            print('\n' + '#'*10 + '\n')
-            for param in layer.parameters(): param.requires_grad=False # freeze
-            # this layer again
-
-        # train the last layer as a RBFN classifier ############################
-        i = self._layer_counter-1
-        optimizer = getattr(self, 'optimizer'+str(i))
-        layer = getattr(self, 'layer'+str(i))
-
-        if len(Y.shape)==2: Y=Y.view(-1,)
-        # NOTE: CrossEntropyLoss requires label tensor to be of
-        # shape (n)
-
-        Y=Y.type(torch.cuda.LongTensor)\
-        if Y.is_cuda else Y.type(torch.LongTensor)
-        # NOTE: required by CrossEntropyLoss
-
-        for param in layer.parameters(): param.requires_grad=True # unfreeze
-        for _ in range(n_epoch[i]):
-            __ = 0
-            for x, y in K.get_batch(
-                X, Y,
-                batch_size=batch_size,
-                shuffle=shuffle
-                ):
-                __ += 1
-                # compute loss
-                output = self.forward(x, X, upto=i)
-                # print(output) # NOTE: layer1 initial feedforward passed
-
-                loss = self.output_loss_fn(output, y)
-                # print(loss) # NOTE: initial feedforward passed
-                # NOTE: L2 regulatization
-                # is taken care of by setting the weight_decay param in the
-                # optimizer, see
-                # https://discuss.pytorch.org/t/simple-l2-regularization/139
-
-                print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
-                    _+1, n_epoch[i], __, n_batch+int(last_batch),
-                    self.output_loss_fn.__class__.__name__,
-                    loss.data[0]
-                    ))
-
-                # train the layer
-                optimizer.zero_grad()
-                loss.backward()
-
-                #########
-                # define crossentropy loss to test gradient
-                # loss = output_prob.mul(K.one_hot(y.unsqueeze(dim=1), n_class)).sum()/2
-                # NOTE: this calculation results in the same gradient as that
-                # calculated by autograd using CrossEntropyLoss as loss_fn
-
-                # check gradient
-                # print('weight', layer.weight)
-                # print('gradient', layer.weight.grad.data)
-                # print('bias gradient', layer.bias.grad.data)
-                #########
-
-                optimizer.step()
-        print('\n' + '#'*10 + '\n')
-        for param in layer.parameters(): param.requires_grad=False # freeze
-        # this layer again
+        self._fit_output(
+            n_epoch,
+            X, Y,
+            batch_size=batch_size,
+            shuffle=shuffle
+            )
+        print('Classifier trained.')
 
 if __name__=='__main__':
     pass
