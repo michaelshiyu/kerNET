@@ -13,9 +13,13 @@ from layers.kerlinear import kerLinear
 # https://github.com/pytorch/pytorch/issues/584
 # TODO: using multiple devices, see
 # http://pytorch.org/docs/0.3.1/notes/multiprocessing.html and nn.DataParallel
-# TODO: check numerical grad for the toy example
+# TODO: numerically check initial grad calculation for the toy example
+# TODO: check numerically grad updates for two update modes (update-per-batch
+# and accumulate_grad)
 # TODO: tests
 # TODO: python2 compatibility
+# TODO: numerically check feedforward, initial grad calc and grad updates of the
+# bp model; run it on some datasets (classification and regression)
 
 torch.manual_seed(1234)
 
@@ -153,7 +157,7 @@ class baseMLKN(torch.nn.Module):
         Y_test : Tensor, shape (n1_example, out_dim)
             Raw output from the network.
         """
-        if not batch_size: batch_size=X_test.shape[0]
+        if not batch_size or batch_size>X_test.shape[0]: batch_size=X_test.shape[0]
 
         i = self._layer_counter-1
         layer = getattr(self, 'layer'+str(i))
@@ -195,14 +199,99 @@ class MLKN(baseMLKN):
     """
     A general MLKN model that does everything. Trained using backpropagation.
     """
-    # NOTE: maybe this could be absorbed into baseMLKN
-    def add_loss(self,):
-        pass
-    def add_optimizer(self,):
-        pass
-    def fit(self,):
-        """BackProp."""
-        pass
+    def add_optimizer(self, optimizer):
+        """
+        One optimizer for the entire model. But this of course supports those
+        fancy per-parameter options from PyTorch.
+        """
+        assert isinstance(optimizer, torch.optim.Optimizer)
+        setattr(self, 'optimizer', optimizer)
+
+    def fit(
+        self,
+        n_epoch,
+        X, Y,
+        batch_size=None,
+        shuffle=False,
+        accumulate_grad=True):
+        """
+        Parameters
+        ----------
+        n_epoch : int
+            The number of epochs to train the model.
+
+        X : Tensor, shape (n_example, dim)
+            Training set.
+
+        Y : Tensor, shape (n_example, 1) or (n_example,)
+            Target data.
+
+        batch_size (optional) : int
+            If not specified, use full mode.
+
+        shuffle (optional) : bool
+            Shuffle the data at each epoch.
+
+        accumulate_grad (optional) : bool
+            If True, accumulate gradient from each batch and only update the
+            weights after each epoch.
+        """
+        assert X.shape[0]==Y.shape[0]
+
+        if not batch_size or batch_size>X.shape[0]: batch_size = X.shape[0]
+        n_batch = X.shape[0] // batch_size
+        last_batch = bool(X.shape[0] % batch_size)
+
+        if len(Y.shape)==2: Y=Y.view(-1,)
+        # NOTE: CrossEntropyLoss requires label tensor to be of
+        # shape (n)
+        # TODO: what about multi-D MSELoss or CrossEntropyLoss?
+        if isinstance(self.output_loss_fn, torch.nn.CrossEntropyLoss):
+            Y=Y.type(torch.cuda.LongTensor)\
+            if Y.is_cuda else Y.type(torch.LongTensor)
+            # NOTE: required by CrossEntropyLoss
+
+        elif isinstance(self.output_loss_fn, torch.nn.MSELoss):
+            Y=Y.type(torch.cuda.FloatTensor)\
+            if Y.is_cuda else Y.type(torch.FloatTensor)
+            # NOTE: required by MSELoss
+
+        for param in self.parameters(): param.requires_grad=True # unfreeze
+        for _ in range(n_epoch):
+            __ = 0
+            self.optimizer.zero_grad()
+            for x, y in K.get_batch(
+                X, Y,
+                batch_size=batch_size,
+                shuffle=shuffle
+                ):
+                __ += 1
+                output = self._forward(x, X)
+
+                loss = self.output_loss_fn(output, y)
+                # NOTE: L2 regulatization
+                # is taken care of by setting the weight_decay param in the
+                # optimizer, see
+                # https://discuss.pytorch.org/t/simple-l2-regularization/139
+
+                print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
+                    _+1, n_epoch, __, n_batch+int(last_batch),
+                    self.output_loss_fn.__class__.__name__,
+                    loss.data[0]
+                    ))
+
+                loss.backward()
+                if not accumulate_grad:
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
+
+            if accumulate_grad:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+
+        print('\n' + '#'*10 + '\n')
+        for param in self.parameters(): param.requires_grad=False # freeze
+        # the model
 
 class MLKNGreedy(baseMLKN):
     """
@@ -245,19 +334,23 @@ class MLKNGreedy(baseMLKN):
         for param in self.parameters(): param.requires_grad=False # freeze all
         # layers
 
-    def _fit_rep_learners(self, n_epoch, X, Y, n_group, batch_size=None, shuffle=False):
+    def _fit_rep_learners(
+        self,
+        n_epoch,
+        X, Y,
+        n_group,
+        batch_size=None,
+        shuffle=False,
+        accumulate_grad=True):
         """
         Fit the representation learning layers, i.e., all layers but the last.
         """
-        # TODO: now uses SGD or batch GD: update weights and empty grad per batch.
-        # Give option on using full GD: accumulate grad from each batch and
-        # only update once per epoch
 
         assert len(Y.shape) <= 2
         # NOTE: this model only supports hard class labels
         assert X.shape[0]==Y.shape[0]
 
-        if not batch_size: batch_size = X.shape[0]
+        if not batch_size or batch_size>X.shape[0]: batch_size = X.shape[0]
         n_batch = X.shape[0] // batch_size
         last_batch = bool(X.shape[0] % batch_size)
 
@@ -282,6 +375,7 @@ class MLKNGreedy(baseMLKN):
 
             for _ in range(n_epoch[i]):
                 __ = 0
+                optimizer.zero_grad()
                 for x, y in K.get_batch(
                     X, Y,
                     batch_size=batch_size,
@@ -325,9 +419,11 @@ class MLKNGreedy(baseMLKN):
                         -loss.data[0]
                         ))
 
-                    # train the layer
-                    optimizer.zero_grad()
                     loss.backward()
+                    # train the layer
+                    if not accumulate_grad:
+                        optimizer.step()
+                        optimizer.zero_grad()
 
                     #########
                     # check gradient
@@ -335,23 +431,30 @@ class MLKNGreedy(baseMLKN):
                     # print('gradient', layer.weight.grad.data)
                     #########
 
+                if accumulate_grad:
                     optimizer.step()
+                    optimizer.zero_grad()
+
             print('\n' + '#'*10 + '\n')
             for param in layer.parameters(): param.requires_grad=False # freeze
             # this layer again
 
-    def _fit_output(self, n_epoch, X, Y, batch_size=None, shuffle=False):
+    def _fit_output(
+        self,
+        n_epoch,
+        X, Y,
+        batch_size=None,
+        shuffle=False,
+        accumulate_grad=True
+        ):
         """
         Fit the last layer.
         """
-        # TODO: now uses SGD or batch GD: update weights and empty grad per batch.
-        # Give option on using full GD: accumulate grad from each batch and
-        # only update once per epoch
 
         assert len(Y.shape) <= 2 # NOTE: this model only supports hard class labels
         assert X.shape[0]==Y.shape[0]
 
-        if not batch_size: batch_size = X.shape[0]
+        if not batch_size or batch_size>X.shape[0]: batch_size = X.shape[0]
         n_batch = X.shape[0] // batch_size
         last_batch = bool(X.shape[0] % batch_size)
 
@@ -362,8 +465,8 @@ class MLKNGreedy(baseMLKN):
         layer = getattr(self, 'layer'+str(i))
 
         if len(Y.shape)==2: Y=Y.view(-1,)
-        # NOTE: CrossEntropyLoss requires label tensor to be of
-        # shape (n)
+        # NOTE: CrossEntropyLoss (and probably also MSELoss) requires label
+        # tensor to be of shape (n)
 
         # TODO: what about multi-D MSELoss or CrossEntropyLoss?
 
@@ -381,6 +484,7 @@ class MLKNGreedy(baseMLKN):
         for param in layer.parameters(): param.requires_grad=True # unfreeze
         for _ in range(n_epoch[i]):
             __ = 0
+            optimizer.zero_grad()
             for x, y in K.get_batch(
                 X, Y,
                 batch_size=batch_size,
@@ -404,9 +508,11 @@ class MLKNGreedy(baseMLKN):
                     loss.data[0]
                     ))
 
-                # train the layer
-                optimizer.zero_grad()
                 loss.backward()
+                # train the layer
+                if not accumulate_grad:
+                    optimizer.step()
+                    optimizer.zero_grad()
 
                 #########
                 # define crossentropy loss to test gradient
@@ -419,8 +525,10 @@ class MLKNGreedy(baseMLKN):
                 # print('gradient', layer.weight.grad.data)
                 # print('bias gradient', layer.bias.grad.data)
                 #########
-
+            if accumulate_grad:
                 optimizer.step()
+                optimizer.zero_grad()
+
         print('\n' + '#'*10 + '\n')
         for param in layer.parameters(): param.requires_grad=False # freeze
         # this layer again
@@ -457,7 +565,7 @@ class MLKNClassifier(MLKNGreedy):
         Y_pred : Tensor, shape (n1_example,)
             Predicted labels.
         """
-        if not batch_size: batch_size=X_test.shape[0]
+        if not batch_size or batch_size>X_test.shape[0]: batch_size=X_test.shape[0]
         Y_raw = self.evaluate(X_test, X, batch_size=batch_size)
         _, Y_pred = torch.max(Y_raw, dim=1)
 
@@ -486,13 +594,22 @@ class MLKNClassifier(MLKNGreedy):
         err = (y_pred!=y).sum().type(torch.FloatTensor).div_(y.shape[0])
         return err
 
-    def fit(self, n_epoch, X, Y, n_class, batch_size=None, shuffle=False):
+    def fit(
+        self,
+        n_epoch,
+        X, Y,
+        n_class,
+        batch_size=None,
+        shuffle=False,
+        accumulate_grad=True):
         """
         Parameters
         ----------
         n_epoch : tuple
             The number of epochs for each layer. If the length of the tuple is
             greater than the number of the layers, use n_epoch[:n_layer].
+            Even if there is only one layer, this parameter must be a tuple (
+            may be of of a scalar, e.g., (1,)).
 
         X : Tensor, shape (n_example, dim)
             Training set.
@@ -507,14 +624,20 @@ class MLKNClassifier(MLKNGreedy):
 
         shuffle (optional) : bool
             Shuffle the data at each epoch.
+
+        accumulate_grad (optional) : bool
+            If True, accumulate gradient from each batch and only update the
+            weights after each epoch.
         """
+        assert len(n_epoch) >= self._layer_counter
         self._compile()
         self._fit_rep_learners(
             n_epoch,
             X, Y,
             n_class,
             batch_size=batch_size,
-            shuffle=shuffle
+            shuffle=shuffle,
+            accumulate_grad=accumulate_grad
             )
         print('Representation-learning layers trained.')
 
@@ -522,7 +645,8 @@ class MLKNClassifier(MLKNGreedy):
             n_epoch,
             X, Y,
             batch_size=batch_size,
-            shuffle=shuffle
+            shuffle=shuffle,
+            accumulate_grad=accumulate_grad
             )
         print('Classifier trained.')
 
