@@ -20,7 +20,7 @@ A MLKN is an equivalent of a fully-connected, feedforward neural network in the 
 
 In this repository, you will find a pre-built yet still highly customizable MLKN model. You can easily configure the size of the network and some other features just like using any other high-level neural network APIs. For training, besides all native methods of PyTorch, we have implemented [the proposed layerwise method](https://arxiv.org/abs/1802.03774) for you so that you only need to specify some hyperparameters in a few lines of codes to get things working. Some datasets used in the paper are also readily available for you to test the model out.
 
-# Training a MLKN classifier layer-by-layer for [the Iris dataset](https://en.wikipedia.org/wiki/Iris_flower_data_set)
+# training a MLKN classifier layer-by-layer for [the Iris dataset](https://en.wikipedia.org/wiki/Iris_flower_data_set)
 
 Some imports and preprocessing on data to get things ready.
 ```
@@ -105,7 +105,7 @@ err = mlkn.get_error(y_pred, y_test)
 print('error rate: {:.2f}%'.format(err.data[0] * 100))
 ```
 
-This example is available at examples/mlkn_classifier.py. Some more classification datasets are there for you the try the model out.
+This example is available at _examples/mlkn_classifier.py_. Some more classification datasets are there for you to try the model out.
 
 # Lower-Level Kernel Machine-Based Objects
 
