@@ -107,9 +107,3 @@ print('error rate: {:.2f}%'.format(err.data[0] * 100))
 ```
 
 This example is available at [examples/mlkn_classifier.py](https://github.com/michaelshiyu/kerNET/tree/master/examples). Some more classification datasets are there for you to try the model out.
-
-# Lower-Level Kernel Machine-Based Objects
-
-Apart from the pre-built, high-level models, we offer some basic building blocks to give you more freedom to customize.
-
-(Tutorials will be added soon.)
