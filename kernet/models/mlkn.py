@@ -139,7 +139,7 @@ class baseMLKN(torch.nn.Module):
         x.volatile = True
         return self._forward(x, X, upto)
 
-    def get_repr(self, X_test, X, layer, batch_size=None):
+    def get_repr(self, X_test, X, layer=None, batch_size=None):
         """
         Feed random sample x into the network and get its representation at the
         output of a given layer. This is useful mainly for two reasons. First,
@@ -157,15 +157,48 @@ class baseMLKN(torch.nn.Module):
         X : Tensor, shape (n_example, dim)
             Training set used for fitting the network.
 
-        layer : int
+        layer (optional) : int
             Output of this layer is the hidden representation. Layers are
             zero-indexed with the 0th layer being the one closest to the input.
+            If this parameter is not passed, evaluate the output of the entire
+            network.
 
         Returns
         -------
         Y_test : Tensor, shape (n1_example, layer_dim)
             Hidden representation of X_test at the given layer.
         """
+        # TODO: test
+        if not batch_size or batch_size>X_test.shape[0]: batch_size=X_test.shape[0]
+        if layer is None: layer=self._layer_counter-1
+        else: assert 0<=layer<=self._layer_counter-1
+
+        layer = getattr(self, 'layer'+str(layer))
+        out_dim = layer.weight.shape[0] # TODO: strangely, nn.Linear stores
+        # weights as [out_dim, in_dim]...or am I making a mistake somewhere
+
+        Y_test = torch.cuda.FloatTensor(X_test.shape[0], out_dim) if \
+        X_test.is_cuda else torch.FloatTensor(X_test.shape[0], out_dim)
+
+        i = 0
+        for x_test in K.get_batch(X_test, batch_size=batch_size):
+            x_test = x_test[0].clone() # NOTE: clone turns x_test into a leaf
+            # Variable, which is required to set the volatile flag
+
+            # NOTE: when only one set is sent to get_batch,
+            # we need to use x_test[0] because no automatic unpacking has
+            # been done by Python
+            y_test = self._forward_volatile(x_test, X, upto=layer)
+
+            if x_test.shape[0]<batch_size: # last batch
+                Y_test[i*batch_size:] = y_test.data[:]
+                break
+            Y_test[i*batch_size: (i+1)*batch_size] = y_test.data[:]
+            i += 1
+
+        return Variable(Y_test, requires_grad=False)
+        # NOTE: this is to make the type of Y_pred consistent with X_test since
+        # X_test must be a Variable
 
     def evaluate(self, X_test, X, batch_size=None):
         """
@@ -185,36 +218,8 @@ class baseMLKN(torch.nn.Module):
         Y_test : Tensor, shape (n1_example, out_dim)
             Raw output from the network.
         """
-        if not batch_size or batch_size>X_test.shape[0]: batch_size=X_test.shape[0]
-
-        i = self._layer_counter-1
-        layer = getattr(self, 'layer'+str(i))
-        out_dim = layer.weight.shape[0] # TODO: strangely, nn.Linear stores
-        # weights as [out_dim, in_dim]...or am I making a mistake somewhere
-
-        Y_test = torch.cuda.FloatTensor(X_test.shape[0], out_dim) if \
-        X_test.is_cuda else torch.FloatTensor(X_test.shape[0], out_dim)
-
-        i = 0
-        for x_test in K.get_batch(X_test, batch_size=batch_size):
-            x_test = x_test[0].clone() # NOTE: clone turns x_test into a leaf
-            # Variable, which is required to set the volatile flag
-
-            # NOTE: when only one set is sent to get_batch,
-            # we need to use x_test[0] because no automatic unpacking has
-            # been done by Python
-            y_test = self._forward_volatile(x_test, X)
-
-            if x_test.shape[0]<batch_size: # last batch
-                Y_test[i*batch_size:] = y_test.data[:]
-                break
-            Y_test[i*batch_size: (i+1)*batch_size] = y_test.data[:]
-            i += 1
-
-        return Variable(Y_test, requires_grad=False)
-        # NOTE: this is to make the type of Y_pred consistent with X_test since
-        # X_test must be a Variable
-
+        # TODO: test
+        return self.get_repr(X_test, X, batch_size=batch_size)
 
     def fit(self):
         raise NotImplementedError('must be implemented by subclass')
