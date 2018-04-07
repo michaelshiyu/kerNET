@@ -99,7 +99,7 @@ mlkn.fit(
     )
 ```
 
-Make a prediction on the test set and print error. A special property of MLKN is that for it to do anything, it always needs a reference to its training set. You could think of this as a set of bases to expand your kernel machine on. It boils down to the fact that a kernel machine is nothing but ```f(x) = \sum_{i=1}^n \alpha_i k(x_i, x) + b```, where ```{x_i: i=1, 2, ..., n}``` is a given random sample that was used as training set. And this is why in a lot of methods that involve evaluating the kernel machines, you see the parameter ```X```. Just feed it with the training set you used to train this kernel machine.
+Make a prediction on the test set and print error. A special property of MLKN is that for it to do anything, it always needs a reference to its training set. You could think of this as a set of bases to expand your kernel machine on. It boils down to the fact that a kernel machine is nothing but ```f(x) = \sum_{i=1}^n alpha_i k(x_i, x) + b```, where ```{alpha_i: i=1, 2, ..., n}``` and ```b``` are some trainable parameters and ```{x_i: i=1, 2, ..., n}``` is a given random sample that was used as training set. And this is why in a lot of methods that involve evaluating the kernel machines, you see the parameter ```X```. Just feed it with the training set you used to train this kernel machine.
 ```python
 y_pred = mlkn.predict(X_test=x_test, X=x_train, batch_size=15)
 err = mlkn.get_error(y_pred, y_test)
