@@ -60,7 +60,7 @@ from models.mlkn import MLKNClassifier
 mlkn = MLKNClassifier()
 ```
 
-Let's implement a two-layer MLKN with 15 kernel machines on the first layer and ```n_class``` kernel machines on the second (because we will use cross-entropy as our loss function later and train the second layer as a RBFN). ```kerLinear``` is a ```torch.nn.Module``` object that represents a layer of kernel machines which use identical Gaussian kernels ```k(x, y) = e^(-1/2 sigma^2 ||x - y||^2_2)```. ```sigma``` controls the kernel width. One should always set the ```ker_dim``` parameter to the number of examples in your training set for the layer.
+Let's implement a two-layer MLKN with 15 kernel machines on the first layer and ```n_class``` kernel machines on the second (because we will use cross-entropy as our loss function later and train the second layer as a RBFN). ```kerLinear``` is a ```torch.nn.Module``` object that represents a layer of kernel machines which use identical Gaussian kernels ```k(x, y) = exp(-||x-y||_2^2 / (2 * sigma^2))```. ```sigma``` controls the kernel width. One should always set the ```ker_dim``` parameter to the number of examples in your training set for the layer.
 ```python
 from layers.kerlinear import kerLinear
 mlkn.add_layer(
