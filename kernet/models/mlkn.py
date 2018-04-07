@@ -139,6 +139,34 @@ class baseMLKN(torch.nn.Module):
         x.volatile = True
         return self._forward(x, X, upto)
 
+    def get_repr(self, X_test, X, layer, batch_size=None):
+        """
+        Feed random sample x into the network and get its representation at the
+        output of a given layer. This is useful mainly for two reasons. First,
+        one might just be curious and want to explore the hidden representation
+        of a trained MLKN. Second, to train the last layer as a SVM (or just
+        substitute all layers after this one with a SVM), one could
+        simply take this hidden representation and use it as a new random sample
+        for his/her favorite SVM model.
+
+        Parameters
+        ----------
+        X_test : Tensor, shape (n1_example, dim)
+            Random sample whose representation is of interest.
+
+        X : Tensor, shape (n_example, dim)
+            Training set used for fitting the network.
+
+        layer : int
+            Output of this layer is the hidden representation. Layers are
+            zero-indexed with the 0th layer being the one closest to the input.
+
+        Returns
+        -------
+        Y_test : Tensor, shape (n1_example, layer_dim)
+            Hidden representation of X_test at the given layer.
+        """
+
     def evaluate(self, X_test, X, batch_size=None):
         """
         Feed X_test into the network and get raw output.
