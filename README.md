@@ -71,7 +71,7 @@ mlkn.add_layer(
     )
 ```
 
-Then add optimizer for each layer. This works with any ```torch.optim.Optimizer```. Each optimizer is in charge of one layer with the order of addition being the same with the order of layers, i.e., the first-added optimizer would be assigned to the first layer (layer closest to the input). For each optimizer, one can specify ```params``` to anything and it will be overridden to the weights of the correct layer automatically before the network is trained when ```fit``` is called.
+Then add optimizer for each layer. This works with any ```torch.optim.Optimizer```. Each optimizer is in charge of one layer with the order of addition being the same with the order of layers, i.e., the first-added optimizer would be assigned to the first layer (layer closest to the input). For each optimizer, one can specify ```params``` to anything and it will be overridden to the weights of the correct layer automatically before the network is trained when ```fit``` is called. Let's use [Adam](https://arxiv.org/pdf/1412.6980.pdf) as the optimizer for this example. Note that for PyTorch optimizers, ```weight_decay``` is the l2-norm regularization coefficient.
 ```python
 mlkn.add_optimizer(
     torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=0.1)
@@ -86,7 +86,7 @@ Specify loss function for the output layer, this works with any PyTorch loss fun
 mlkn.add_loss(torch.nn.CrossEntropyLoss())
 ```
 
-Fit the model. For ```n_epoch```, one should pass a tuple of ```int```s with the first number specifying the number of epochs to train the first layer, etc. ```shuffle``` governs if the entire dataset is randomly shuffled at each epoch. If ```accumulate_grad``` is ```True```, the weights are only updated at each epoch instead of each minibatch using the accumulated gradient from all minibatches. If it is set to ```False```, there will be an update per minibatch.
+Fit the model. For ```n_epoch```, one should pass a tuple of ```int``` with the first number specifying the number of epochs to train the first layer, etc. ```shuffle``` governs if the entire dataset is randomly shuffled at each epoch. If ```accumulate_grad``` is ```True```, the weights are only updated at each epoch instead of each minibatch using the accumulated gradient from all minibatches in that epoch. If it is set to ```False```, there will be an update per minibatch.
 ```python
 mlkn.fit(
     n_epoch=(30, 30),
