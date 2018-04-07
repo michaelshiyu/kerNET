@@ -24,6 +24,7 @@ In this repository, you will find a pre-built yet still highly customizable MLKN
 
 Some imports and preprocessing on data to get things ready.
 ```python
+import numpy as np
 from sklearn.datasets import load_iris
 from sklearn.preprocessing import StandardScaler
 import torch
