@@ -109,3 +109,80 @@ print('error rate: {:.2f}%'.format(err.data[0] * 100))
 This example is available at [examples/mlkn_classifier.py](https://github.com/michaelshiyu/kerNET/tree/master/examples). Some more classification datasets are there for you to try the model out.
 
 ---------
+
+### training MLKN with backpropagation
+
+In kerNET, we have also implemented a generic MLKN with maximal freedom to customization. Namely, it does not have greedy training pre-configured so it is easier to train it with the standard backpropagation together with some gradient-based optimization. Further, it is not defined to be a classifier, instead, it is a general-purpose learning machine: whatever you can do with MLP, you can do it with MLKN.
+
+The generic MLKN works almost the same as MLKNClassifier. First we instantiate a model.
+```python
+import torch
+from models.mlkn import MLKN
+mlkn = MLKN()
+```
+
+Adding layers is the same as we did for MLKNClassifier.
+```python
+from layers.kerlinear import kerLinear
+mlkn.add_layer(
+    kerLinear(ker_dim=x_train.shape[0], out_dim=15, sigma=5, bias=True)
+    )
+mlkn.add_layer(
+    kerLinear(ker_dim=x_train.shape[0], out_dim=n_class, sigma=.1, bias=True)
+    )
+```
+
+For regression, the dimension of the output layer should be adjusted.
+```python
+mlkn.add_layer(
+    kerLinear(ker_dim=x_train.shape[0], out_dim=y_train.shape[1], sigma=.1, bias=True)
+    )
+```
+
+Add an optimizer. This works with any ```torch.optim.Optimizer```. Unlike in the layerwise training case, here one optimizer is in charge of the training of the entire network since we are using backpropagation. But of course, this does not mean that all layers have to be trained under exactly the same setting: you could still specify [per-parameter options](http://pytorch.org/docs/master/optim.html) for each layer.
+```python
+mlkn.add_optimizer(
+    torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=0.1)
+    )
+```
+
+Specify a loss function. For classification, ```torch.nn.CrossEntropyLoss``` may be an ideal option whereas for regression, ```torch.nn.MSELoss``` is a common choice.
+```python
+mlkn.add_loss(torch.nn.CrossEntropyLoss())
+```
+Or, for regression,
+```python
+mlkn.add_loss(torch.nn.MSELoss())
+```
+
+Train the model and evaluate the output given some test set.
+```python
+mlkn.fit(
+    n_epoch=30,
+    batch_size=30,
+    shuffle=True,
+    X=x_train,
+    Y=y_train,
+    accumulate_grad=True
+    )
+
+y_raw = mlkn.evaluate(X_test=x_test, X=x_train, batch_size=15)
+```
+
+For classification, one may be interested in the error rate for this test set whereas for regression, MSE.
+
+For classification,
+```python
+_, y_pred = torch.max(y_raw, dim=1)
+y_pred = y_pred.type_as(y_test)
+err = (y_pred!=y_test).sum().type(torch.FloatTensor).div_(y_test.shape[0])
+print('error rate: {:.2f}%'.format(err.data[0] * 100))
+```
+
+For regression,
+```python
+mse = torch.nn.MSELoss()
+print('mse: {:.4f}'.format(mse(y_raw, y_test).data[0]))
+```
+
+This example is available at [examples/mlkn_generic.py](https://github.com/michaelshiyu/kerNET/tree/master/examples). Some classification and regression datasets are there for you to try the model out.
