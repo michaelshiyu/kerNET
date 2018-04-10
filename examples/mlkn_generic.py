@@ -63,7 +63,8 @@ if __name__=='__main__':
 
     # randomly permute data
     new_index = torch.randperm(X.shape[0])
-    X, Y = X[new_index], Y[new_index]
+    # BUG: buggy on GPU
+    # X, Y = X[new_index], Y[new_index]
 
     # split data evenly into training and test
     index = len(X)//2
@@ -93,11 +94,13 @@ if __name__=='__main__':
     # PyTorch loss function but it is recommended that you use CrossEntropyLoss
     # mlkn.add_loss(torch.nn.CrossEntropyLoss()) # comment out for regression
     mlkn.add_loss(torch.nn.MSELoss()) # comment out for classification
+    if torch.cuda.is_available():
+        mlkn.cuda()
     # fit the model
     mlkn.fit(
         n_epoch=30,
         batch_size=30,
-        shuffle=True,
+        shuffle=False, # BUG: buggy on GPU
         X=x_train,
         Y=y_train,
         accumulate_grad=True
@@ -117,6 +120,9 @@ if __name__=='__main__':
 
     mse = torch.nn.MSELoss()
     print('mse: {:.4f}'.format(mse(y_raw, y_test).data[0]))
+    if torch.cuda.is_available():
+        y_raw = y_raw.cpu()
+        y_test = y_test.cpu()
     y_raw_np = y_raw.data.numpy()
     y_test_np = y_test.data.numpy()
 

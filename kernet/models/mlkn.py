@@ -173,9 +173,9 @@ class baseMLKN(torch.nn.Module):
         if layer is None: layer=self._layer_counter-1
         else: assert 0<=layer<=self._layer_counter-1
 
-        layer = getattr(self, 'layer'+str(layer))
-        out_dim = layer.weight.shape[0] # TODO: strangely, nn.Linear stores
-        # weights as [out_dim, in_dim]...or am I making a mistake somewhere
+        layer, layer_index = getattr(self, 'layer'+str(layer)), layer
+        out_dim = layer.weight.shape[0] # NOTE: nn.Linear stores
+        # weights as [out_dim, in_dim]
 
         Y_test = torch.cuda.FloatTensor(X_test.shape[0], out_dim) if \
         X_test.is_cuda else torch.FloatTensor(X_test.shape[0], out_dim)
@@ -188,7 +188,7 @@ class baseMLKN(torch.nn.Module):
             # NOTE: when only one set is sent to get_batch,
             # we need to use x_test[0] because no automatic unpacking has
             # been done by Python
-            y_test = self._forward_volatile(x_test, X, upto=layer)
+            y_test = self._forward_volatile(x_test, X, upto=layer_index)
 
             if x_test.shape[0]<batch_size: # last batch
                 Y_test[i*batch_size:] = y_test.data[:]

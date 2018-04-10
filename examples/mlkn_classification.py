@@ -49,7 +49,8 @@ if __name__=='__main__':
 
     # randomly permute data
     new_index = torch.randperm(X.shape[0])
-    X, Y = X[new_index], Y[new_index]
+    # BUG: buggy on GPU
+    # X, Y = X[new_index], Y[new_index]
 
     # split data evenly into training and test
     index = len(X)//2
@@ -76,11 +77,13 @@ if __name__=='__main__':
     # specify loss function for the output layer, this works with any
     # PyTorch loss function but it is recommended that you use CrossEntropyLoss
     mlkn.add_loss(torch.nn.CrossEntropyLoss())
+    if torch.cuda.is_available():
+        mlkn.cuda()
     # fit the model
     mlkn.fit(
         n_epoch=(30, 30),
         batch_size=30,
-        shuffle=True,
+        shuffle=True, # BUG: buggy on GPU
         X=x_train,
         Y=y_train,
         n_class=n_class,

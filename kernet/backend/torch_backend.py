@@ -97,6 +97,7 @@ def one_hot(y, n_class):
     y_onehot : Tensor (n_example, n_class)
         dtype of y_onehot is consistent with that of y.
     """
+    # BUG: scatter_ is buggy on GPU
     # NOTE: this function is not differentiable
     assert n_class >= 2
     if len(y.shape)==1: y.unsqueeze_(0)
@@ -216,6 +217,7 @@ def get_batch(*sets, batch_size, shuffle=False):
 
     ...
     """
+    # BUG: shuffle is buggy on GPU
     lens = list(map(lambda x: x.shape[0], sets))
     assert lens.count(lens[0])==len(lens) # make sure all sets are equal in
     # sizes of their 1st dims
