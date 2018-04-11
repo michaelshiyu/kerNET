@@ -25,10 +25,10 @@ if __name__=='__main__':
     but not the greedy training method. Thus, it is applicable to any general
     learning problem including classification, regression, etc.
     """
-    # x, y = load_breast_cancer(return_X_y=True)
-    # x, y = load_digits(return_X_y=True)
-    # x, y = load_iris(return_X_y=True)
-    x, y = load_boston(return_X_y=True)
+    # x, y = load_breast_cancer(return_X_y=True) # gpu 1.75
+    # x, y = load_digits(return_X_y=True) # gpu 7.79
+    # x, y = load_iris(return_X_y=True) # gpu 2.67
+    x, y = load_boston(return_X_y=True) # 0.1022/206.8818
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could
     # do:

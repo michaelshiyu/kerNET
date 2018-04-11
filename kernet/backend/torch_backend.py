@@ -97,7 +97,6 @@ def one_hot(y, n_class):
     y_onehot : Tensor (n_example, n_class)
         dtype of y_onehot is consistent with that of y.
     """
-    # BUG: scatter_ is buggy on GPU
     # NOTE: this function is not differentiable
     assert n_class >= 2
     if len(y.shape)==1: y.unsqueeze_(0)
@@ -114,8 +113,12 @@ def one_hot(y, n_class):
 
     n_example = y.shape[0]
 
-    y_onehot = torch.FloatTensor(n_example, n_class).fill_(0)
-    ones = torch.FloatTensor(n_example, 1).fill_(1)
+    if y.is_cuda:
+        y_onehot = torch.FloatTensor(n_example, n_class).fill_(0).cuda()
+        ones = torch.FloatTensor(n_example, 1).fill_(1).cuda()
+    else:
+        y_onehot = torch.FloatTensor(n_example, n_class).fill_(0)
+        ones = torch.FloatTensor(n_example, 1).fill_(1)
 
     y_onehot.scatter_(1, y, ones)
 
@@ -217,14 +220,10 @@ def get_batch(*sets, batch_size, shuffle=False):
 
     ...
     """
-    # BUG: shuffle is buggy on GPU
     lens = list(map(lambda x: x.shape[0], sets))
     assert lens.count(lens[0])==len(lens) # make sure all sets are equal in
     # sizes of their 1st dims
-
-    if shuffle:
-        new_index = torch.randperm(lens[0])
-        sets = list(map(lambda x: x[new_index], sets))
+    if shuffle: sets = rand_shuffle(sets) # BUG
     n_batch = lens[0] // batch_size
     last_batch = bool(lens[0] % batch_size)
 
@@ -233,6 +232,37 @@ def get_batch(*sets, batch_size, shuffle=False):
     if last_batch:
         i += 1
         yield tuple(map(lambda x: x[i*batch_size:], sets))
+
+def rand_shuffle(*sets):
+    """
+    Shuffle the given sets along the first dimension.
+
+    Parameters
+    ----------
+    X1 : Tensor, shape (n_example, dim_1, ..., dim_d1)
+
+    X2 : Tensor, shape (n_example, dim_1, ..., dim_d2)
+
+    ...
+
+    Returns
+    -------
+    X1 : Tensor, shape (n_example, dim_1, ..., dim_d1)
+        Shuffled X1.
+    X2 : Tensor, shape (n_example, dim_1, ..., dim_d2)
+
+    ...
+    """
+    print(sets)
+    lens = list(map(lambda x: x.shape[0], sets))
+    assert lens.count(lens[0])==len(lens) # make sure all sets are equal in
+    # sizes of their 1st dims
+
+    new_index = torch.randperm(lens[0])
+    if sets[0].is_cuda: new_index=new_index.cuda()
+    sets = list(map(lambda x: x[new_index], sets))
+
+    return sets
 
 if __name__=='__main__':
     x = torch.FloatTensor([[1, 2]])

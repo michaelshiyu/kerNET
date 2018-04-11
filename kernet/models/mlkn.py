@@ -9,8 +9,6 @@ from torch.autograd import Variable
 import backend as K
 from layers.kerlinear import kerLinear
 
-# TODO: check GPU compatibility: move data and modules on GPU, see, for example,
-# https://github.com/pytorch/pytorch/issues/584
 # TODO: using multiple devices, see
 # http://pytorch.org/docs/0.3.1/notes/multiprocessing.html and nn.DataParallel
 # TODO: numerically check initial grad calculation for the toy example

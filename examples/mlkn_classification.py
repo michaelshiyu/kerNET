@@ -48,9 +48,7 @@ if __name__=='__main__':
     Y = Variable(torch.from_numpy(y).type(dtype), requires_grad=False)
 
     # randomly permute data
-    new_index = torch.randperm(X.shape[0])
-    # BUG: buggy on GPU
-    # X, Y = X[new_index], Y[new_index]
+    X, Y = K.rand_shuffle(X, Y)
 
     # split data evenly into training and test
     index = len(X)//2
@@ -83,7 +81,7 @@ if __name__=='__main__':
     mlkn.fit(
         n_epoch=(30, 30),
         batch_size=30,
-        shuffle=True, # BUG: buggy on GPU
+        shuffle=True,
         X=x_train,
         Y=y_train,
         n_class=n_class,
