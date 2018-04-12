@@ -8,6 +8,13 @@ import backend as K
 
 torch.manual_seed(1234)
 
+class _ensemble(torch.nn.Module):
+    def __init__(self):
+        super(_ensemble, self).__init__()
+
+    def add(self):
+        pass
+
 class kerLinear(torch.nn.Module):
     def __init__(self, ker_dim, out_dim, sigma, bias=True):
         """

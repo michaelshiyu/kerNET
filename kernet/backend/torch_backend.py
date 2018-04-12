@@ -223,7 +223,7 @@ def get_batch(*sets, batch_size, shuffle=False):
     lens = list(map(lambda x: x.shape[0], sets))
     assert lens.count(lens[0])==len(lens) # make sure all sets are equal in
     # sizes of their 1st dims
-    if shuffle: sets = rand_shuffle(sets) # BUG
+    if shuffle: sets = rand_shuffle(sets)
     n_batch = lens[0] // batch_size
     last_batch = bool(lens[0] % batch_size)
 
@@ -253,7 +253,11 @@ def rand_shuffle(*sets):
 
     ...
     """
-    print(sets)
+    # TODO: check if the caller passed in a tuple of sets, this happens when
+    # rand_shuffle is called by get_batch. there must be a more elegant way of
+    # doing this
+    if len(sets)==1 and isinstance(sets[0], tuple): sets = sets[0]
+
     lens = list(map(lambda x: x.shape[0], sets))
     assert lens.count(lens[0])==len(lens) # make sure all sets are equal in
     # sizes of their 1st dims

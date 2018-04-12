@@ -23,9 +23,9 @@ if __name__=='__main__':
     including the architecture of the learning machine and the training
     algorithm strictly follows this paper: https://arxiv.org/abs/1802.03774.
     """
-    x, y = load_breast_cancer(return_X_y=True)
+    # x, y = load_breast_cancer(return_X_y=True)
     # x, y = load_digits(return_X_y=True)
-    # x, y = load_iris(return_X_y=True)
+    x, y = load_iris(return_X_y=True)
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could
     # do:

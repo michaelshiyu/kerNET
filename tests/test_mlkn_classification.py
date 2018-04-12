@@ -23,6 +23,7 @@ if __name__=='__main__':
     including the architecture of the learning machine and the training
     algorithm strictly follows this paper: https://arxiv.org/abs/1802.03774.
     """
+    # gpu and cpu give identical results
     x, y = load_breast_cancer(return_X_y=True) # 2.11
     # x, y = load_digits(return_X_y=True) # 5.23
     # x, y = load_iris(return_X_y=True) # 4.00
