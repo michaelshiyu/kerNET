@@ -21,17 +21,17 @@ class _ensemble(torch.nn.Module):
         raise NotImplementedError('Must be implemented by subclass.')
 
 class kerLinearEnsemble(_ensemble):
+    # NOTE: only one of the components need a bias
+    # TODO: another issue is that initializing each component separately results
+    # in different initial weights compared to normal kerLinear
 
     def add(self, component):
         if isinstance(component, kerLinear):
             setattr(self, 'comp'+str(self._comp_counter), component)
             self._comp_counter += 1
 
-    def forward(self, x, X):
+    def forward(self, x):
         i = 0
-        ker_dims = [(
-            getattr(self, 'comp'+str(i)).ker_dim
-            ) for i in range(self._comp_counter)]
         out_dims = [(
             getattr(self, 'comp'+str(i)).out_dim
             ) for i in range(self._comp_counter)]
@@ -43,19 +43,10 @@ class kerLinearEnsemble(_ensemble):
 
         y = Variable(torch.FloatTensor(x.shape[0], out_dim).zero_())
         if x.is_cuda: y=y.cuda()
-        # TODO: make X an attr of kerLinear. this may increase memory use but
-        # makes things easier when fusing data coming from different domains.
-        # if do that, need to change the following piece of code
-        ###
-        ker_dim = ker_dims[0]
-        for i, X_batch in enumerate(K.get_batch(X, batch_size=ker_dim)):
-            comp = getattr(self, 'comp'+str(i))
-            setattr(comp, 'X', X_batch[0])
-        ###
 
         for i in range(self._comp_counter):
             component = getattr(self, 'comp'+str(i))
-            y = y.add(component.forward(x, component.X))
+            y = y.add(component.forward(x))
         return y
 
 """
@@ -92,16 +83,16 @@ if __name__=='__main__':
     y = Variable(torch.FloatTensor([[.3], [.9]]).type(dtype))
 
     linear_ens = kerLinearEnsemble()
-    linear_ens.add(kerLinear(ker_dim=2, out_dim=1, sigma=1, bias=True))
-    linear_ens.add(kerLinear(ker_dim=1, out_dim=1, sigma=1, bias=False))
+    linear_ens.add(kerLinear(X[:2], out_dim=1, sigma=1, bias=True))
+    linear_ens.add(kerLinear(X[2:], out_dim=1, sigma=1, bias=False))
     linear_ens.comp1.weight.data = torch.FloatTensor([[1.5]])
     linear_ens.comp0.weight.data = torch.FloatTensor([[.5, .6]])
     linear_ens.comp0.bias.data = torch.FloatTensor([[2.5]])
-    y = linear_ens(x, X)
+    y = linear_ens(x)
     print(y)
 
-    l = kerLinear(ker_dim=3, out_dim=1, sigma=1, bias=True)
+    l = kerLinear(X, out_dim=1, sigma=1, bias=True)
     l.weight.data = torch.FloatTensor([[.5, .6, 1.5]])
     l.bias.data = torch.FloatTensor([[2.5]])
-    y = l(x, X)
+    y = l(x)
     print(y)

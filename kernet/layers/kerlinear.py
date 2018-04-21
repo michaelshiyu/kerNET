@@ -11,7 +11,7 @@ import backend as K
 torch.manual_seed(1234)
 
 class kerLinear(torch.nn.Module):
-    def __init__(self, ker_dim, out_dim, sigma, bias=True):
+    def __init__(self, X, out_dim, sigma, bias=True):
         """
         Building block for MLKN.
         A kernel linear layer first applies to input sample x a nonlinear map
@@ -29,11 +29,12 @@ class kerLinear(torch.nn.Module):
 
         Parameters
         ----------
+        X : Tensor, shape (n_example, dim)
+            On which this kernel machine is centered.
+
         out_dim : int
             The number of kernel machines in this layer.
-        ker_dim : int
-            Dimension of the codomain of f, or, equivalently, the size of the
-            random sample X.
+
         bias (optional) : bool
             If True, add a bias term to the linear combination.
 
@@ -43,25 +44,29 @@ class kerLinear(torch.nn.Module):
         super(kerLinear, self).__init__()
 
         self.sigma = sigma
-        self.ker_dim = ker_dim
+        if len(X.shape)==1: self.ker_dim=1 # does not modify the
+        # dimension of X here as this will be done later in self.kerMap
+        else: self.ker_dim=X.shape[0]
         self.out_dim = out_dim
 
         self.kerMap = K.kerMap
-        self.linear = torch.nn.Linear(ker_dim, out_dim, bias=bias)
+        self.linear = torch.nn.Linear(X.shape[0], out_dim, bias=bias)
         # TODO: customizable weight initializations
 
         # alias the parameters
         self.weight = self.linear.weight
         self.bias = self.linear.bias
 
-    def forward(self, x, X, use_saved=False):
+        self.X = X
+        # NOTE: save X as an attribute is useful when one wants to combine data
+        # from multiple domains
+
+    def forward(self, x, use_saved=False):
         """
         Parameters
         ----------
 
         x : Tensor, shape (batch_size, dim)
-
-        X : Tensor, shape (n_example, dim)
 
         use_saved (optional) : bool
             If True, use saved x_image. This is useful because in layerwise
@@ -76,11 +81,9 @@ class kerLinear(torch.nn.Module):
         # for each batch x_image is different. unless save all batches in a dict
         # indexed by batch#
         # TODO: 3 modes: save, use_saved, do_nothing
-        if len(X.shape)==1: assert self.ker_dim==1 # does not modify the
-        # dimension of X here as this will be done later in self.kerMap
-        else: assert self.ker_dim==X.shape[0]
+
         if not use_saved:
-            self.x_image = self.kerMap(x, X, self.sigma)
+            self.x_image = self.kerMap(x, self.X, self.sigma)
 
         y = self.linear(self.x_image)
         return y
@@ -95,9 +98,9 @@ if __name__=='__main__':
     X = Variable(torch.FloatTensor([[1, 2], [3, 4], [5, 6]]).type(dtype))
     y = Variable(torch.FloatTensor([[.3], [.9]]).type(dtype))
 
-    l = kerLinear(ker_dim=3, out_dim=1, sigma=1, bias=True)
+    l = kerLinear(X, out_dim=1, sigma=1, bias=True)
 
-    y_pred = l(x=x, X=X)
+    y_pred = l(x)
     print('y_pred', y_pred)
     print('weight', l.linear.weight)
     print('bias', l.linear.bias)
