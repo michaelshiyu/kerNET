@@ -3,9 +3,10 @@
 
 import torch
 from torch.autograd import Variable
-from kerlinear import kerLinear
 
 import sys
+sys.path.append('../kernet/layers')
+from kerlinear import kerLinear
 sys.path.append('../kernet')
 import backend as K
 
@@ -24,11 +25,23 @@ class kerLinearEnsemble(_ensemble):
     # NOTE: only one of the components need a bias
     # TODO: another issue is that initializing each component separately results
     # in different initial weights compared to normal kerLinear
+    def __init__(self):
+        super(kerLinearEnsemble, self).__init__()
+        self.X = self._X() # generator for X's
+
+    def _X(self):
+        """
+        Generate an iterable of X's from each component kerLinear layer in this
+        ensemble.
+        """
+        for i in range(self._comp_counter):
+            comp = getattr(self, 'comp'+str(i))
+            yield comp.X
 
     def add(self, component):
-        if isinstance(component, kerLinear):
-            setattr(self, 'comp'+str(self._comp_counter), component)
-            self._comp_counter += 1
+        # assert isinstance(component, kerLinear) # BUG
+        setattr(self, 'comp'+str(self._comp_counter), component)
+        self._comp_counter += 1
 
     def forward(self, x):
         i = 0

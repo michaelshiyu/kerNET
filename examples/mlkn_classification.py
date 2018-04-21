@@ -14,6 +14,7 @@ sys.path.append('../kernet')
 import backend as K
 from models.mlkn import MLKNClassifier
 from layers.kerlinear import kerLinear
+from layers.ensemble import kerLinearEnsemble
 
 torch.manual_seed(1234)
 
@@ -31,7 +32,7 @@ if __name__=='__main__':
         dtype = torch.cuda.FloatTensor
 
     x, y = load_breast_cancer(return_X_y=True)
-    x, y = load_digits(return_X_y=True)
+    # x, y = load_digits(return_X_y=True)
     # x, y = load_iris(return_X_y=True)
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could
@@ -60,13 +61,31 @@ if __name__=='__main__':
     x_test, y_test = X[index:], Y[index:]
 
     mlkn = MLKNClassifier()
+    """
+    # create ensemble layers so that large datasets can be fitted into memory
+    # note that weight initializations for the layers will be different compared
+    # to the ordinary mode
+    linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
+    for i, x_train_batch in enumerate(K.get_batch(x_train, batch_size=100)):
+        use_bias = True if i==0 else False
+        linear_ensemble0.add(
+            kerLinear(X=x_train_batch[0], out_dim=15, sigma=5, bias=use_bias)
+        )
+        linear_ensemble0.add(
+            kerLinear(X=x_train_batch[0], out_dim=n_class, sigma=.1, bias=use_bias)
+        )
+    mlkn.add_layer(linear_ensemble0)
+    mlkn.add_layer(linear_ensemble1)
+    """
     # add layers to the model, see layers/kerlinear for details on kerLinear
     mlkn.add_layer(
         kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
         ) # TODO: note that this X here can be different from X in mlkn.fit
+    # TODO: for non-input layers, self.X will be updated in runtime
     mlkn.add_layer(
         kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True)
         )
+
     # add optimizer for each layer, this works with any torch.optim.Optimizer
     # note that this model is trained with the proposed layerwise training
     # method by default

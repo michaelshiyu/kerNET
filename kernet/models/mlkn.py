@@ -2,6 +2,7 @@
 # torch 0.3.1
 
 from __future__ import print_function, division
+import types
 
 import torch
 from torch.autograd import Variable
@@ -70,7 +71,7 @@ class baseMLKN(torch.nn.Module):
         """
         setattr(self, 'output_loss_fn', loss_fn)
 
-    def _forward(self, x, upto=None):
+    def _forward(self, x, upto=None, update_X=False):
         """
         Feedforward upto layer 'upto'. If 'upto' is not passed,
         this works as the standard forward function in PyTorch.
@@ -96,15 +97,25 @@ class baseMLKN(torch.nn.Module):
             counter = upto + 1
         else: counter = self._layer_counter
 
-        y_previous, Y_previous = x, self.layer0.X
+
+        y_previous = x
         # TODO: because we always need to compute F_i(X) at each layer i, this
         # is a huge overhead, implement use_saved mode for kerLinear.forward
         # feedforward
         for i in range(counter):
+
             layer = getattr(self, 'layer'+str(i))
-            layer.X = Y_previous
-            y, Y = layer(y_previous), layer(Y_previous)
-            y_previous, Y_previous = y, Y
+            """
+            if isinstance(Y_previous, types.GeneratorType): # for ensemble layer
+                for comp_X in Y_previous:
+                    comp_X = layer(comp_X)
+
+            else:
+            """
+            if i > 0 and update_X: layer.X = self._forward(layer.X, upto=i-1)
+
+            y = layer(y_previous)
+            y_previous = y
 
         return y
 
@@ -385,7 +396,7 @@ class MLKNGreedy(baseMLKN):
             next_layer = getattr(self, 'layer'+str(i+1))
             layer = getattr(self, 'layer'+str(i))
 
-            assert isinstance(next_layer, kerLinear)
+            # assert isinstance(next_layer, kerLinear) # BUG
             # NOTE:
             # torch.nn.Linear cannot pass this. We do this check because each
             # layer uses the kernel function from the next layer to calculate
