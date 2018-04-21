@@ -202,6 +202,11 @@ def get_batch(*sets, batch_size, shuffle=False):
     consider wrap the data into a torch.utils.data.Dataset object and
     use torch.utils.data.DataLoader.
 
+    Whenever the argument sets has only 1 set, add [0] to the return value.
+
+    Parameters
+    ----------
+
     X1 : Tensor, shape (n_example, dim_1, ..., dim_d1)
 
     X2 : Tensor, shape (n_example, dim_1, ..., dim_d2)

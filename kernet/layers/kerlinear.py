@@ -4,28 +4,11 @@
 import torch
 from torch.autograd import Variable
 
+import sys
+sys.path.append('../kernet')
 import backend as K
 
 torch.manual_seed(1234)
-
-class _ensemble(torch.nn.Module):
-    def __init__(self):
-        super(_ensemble, self).__init__()
-        self._comp_counter = 0
-
-    def add(self, component):
-        if isinstance(component, kerLinear):
-            setattr(self, 'comp'+str(self._comp_counter), component)
-            self._comp_counter += 1
-
-    def comp_forward(self, x):
-        """Take care of forward of each component."""
-
-    def forward(self, x):
-        for i in range(self._comp_counter):
-            # TODO:
-            comp = getattr(self, 'comp'+str(i))
-            y.add_equal(comp(x))
 
 class kerLinear(torch.nn.Module):
     def __init__(self, ker_dim, out_dim, sigma, bias=True):
@@ -61,6 +44,7 @@ class kerLinear(torch.nn.Module):
 
         self.sigma = sigma
         self.ker_dim = ker_dim
+        self.out_dim = out_dim
 
         self.kerMap = K.kerMap
         self.linear = torch.nn.Linear(ker_dim, out_dim, bias=bias)
@@ -91,6 +75,7 @@ class kerLinear(torch.nn.Module):
         # TODO: use_saved is probably not going to help in batch mode since
         # for each batch x_image is different. unless save all batches in a dict
         # indexed by batch#
+        # TODO: 3 modes: save, use_saved, do_nothing
         if len(X.shape)==1: assert self.ker_dim==1 # does not modify the
         # dimension of X here as this will be done later in self.kerMap
         else: assert self.ker_dim==X.shape[0]
