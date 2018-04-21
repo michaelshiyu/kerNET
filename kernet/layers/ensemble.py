@@ -42,13 +42,13 @@ class kerLinearEnsemble(_ensemble):
         # assert isinstance(component, kerLinear) # BUG
         setattr(self, 'comp'+str(self._comp_counter), component)
         self._comp_counter += 1
+        self.sigma = component.sigma # TODO: allow components to have different
+        # sigma?
 
     def forward(self, x):
-        i = 0
         out_dims = [(
             getattr(self, 'comp'+str(i)).out_dim
             ) for i in range(self._comp_counter)]
-
         # out_dims of all comps should be equal
         assert out_dims.count(out_dims[0])==len(out_dims)
 
@@ -60,6 +60,7 @@ class kerLinearEnsemble(_ensemble):
         for i in range(self._comp_counter):
             component = getattr(self, 'comp'+str(i))
             y = y.add(component.forward(x))
+        self.out_dim = out_dim
         return y
 
 """

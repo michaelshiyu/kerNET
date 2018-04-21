@@ -27,8 +27,8 @@ if __name__=='__main__':
     """
     # gpu and cpu return identical results
     x, y = load_breast_cancer(return_X_y=True) # 1.75
-    x, y = load_digits(return_X_y=True) # 7.79
-    # x, y = load_iris(return_X_y=True) # 2.67
+    # x, y = load_digits(return_X_y=True) # 7.79
+    x, y = load_iris(return_X_y=True) # 2.67
     # x, y = load_boston(return_X_y=True) # 0.1022/206.8818
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could

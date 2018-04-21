@@ -91,35 +91,36 @@ class baseMLKN(torch.nn.Module):
         y : Tensor, shape (batch_size, out_dim)
             Batch output.
         """
+        # NOTE: to use this method, make sure all layers in the model are
+        # kerLinear
         if upto is not None: # cannot use 'if upto' here since it is 0-indexed
         # and layer0 is the first layer
             assert 0<=upto<=self._layer_counter
             counter = upto + 1
         else: counter = self._layer_counter
 
-
         y_previous = x
-        # TODO: because we always need to compute F_i(X) at each layer i, this
-        # is a huge overhead, implement use_saved mode for kerLinear.forward
-        # feedforward
         for i in range(counter):
 
             layer = getattr(self, 'layer'+str(i))
-            """
-            if isinstance(Y_previous, types.GeneratorType): # for ensemble layer
-                for comp_X in Y_previous:
-                    comp_X = layer(comp_X)
 
-            else:
-            """
-            if i > 0 and update_X: layer.X = self._forward(layer.X, upto=i-1)
+            if i > 0 and update_X:
+                if isinstance(layer.X, types.GeneratorType): # for ensemble layer
+                    for j in range(layer._comp_counter):
+                        comp = getattr(layer, 'comp'+str(j))
+                        comp.X = self._forward(comp.X_init, upto=i-1)
+                else:
+                    layer.X = self._forward(layer.X_init, upto=i-1)
+                    # NOTE: if do not update using X_init, shape[1] of this
+                    # data will not match data in previous layers, will cause
+                    # issue in kerMap
 
             y = layer(y_previous)
             y_previous = y
 
         return y
 
-    def _forward_volatile(self, x, upto=None):
+    def _forward_volatile(self, x, upto=None, update_X=False):
         """
         Feedforward upto layer 'upto' in volatile mode. Use for inference. See
         http://pytorch.org/docs/0.3.1/notes/autograd.html.
@@ -142,7 +143,7 @@ class baseMLKN(torch.nn.Module):
             Batch output.
         """
         x.volatile = True
-        return self._forward(x, upto)
+        return self._forward(x, upto=upto, update_X=update_X)
 
     def get_repr(self, X_test, layer=None, batch_size=None):
         """
@@ -176,8 +177,7 @@ class baseMLKN(torch.nn.Module):
         else: assert 0<=layer<=self._layer_counter-1
 
         layer, layer_index = getattr(self, 'layer'+str(layer)), layer
-        out_dim = layer.weight.shape[0] # NOTE: nn.Linear stores
-        # weights as [out_dim, in_dim]
+        out_dim = layer.out_dim
 
         Y_test = torch.cuda.FloatTensor(X_test.shape[0], out_dim) if \
         X_test.is_cuda else torch.FloatTensor(X_test.shape[0], out_dim)
@@ -190,7 +190,14 @@ class baseMLKN(torch.nn.Module):
             # NOTE: when only one set is sent to get_batch,
             # we need to use x_test[0] because no automatic unpacking has
             # been done by Python
-            y_test = self._forward_volatile(x_test, upto=layer_index)
+            y_test = self._forward_volatile(
+                x_test,
+                upto=layer_index,
+                update_X=True
+                ) # TODO: do we need update_X for volatile evaluate?
+                # we did this originally, if change
+                # update_X to False, results differs from the old ones
+                # for mlkn_generic, why?
 
             if x_test.shape[0]<batch_size: # last batch
                 Y_test[i*batch_size:] = y_test.data[:]
@@ -297,8 +304,10 @@ class MLKN(baseMLKN):
                 batch_size=batch_size,
                 shuffle=shuffle
                 ):
+                # update_X = True if __==0 else False # BUG
+                update_X = True
                 __ += 1
-                output = self._forward(x)
+                output = self._forward(x, update_X=update_X)
 
                 loss = self.output_loss_fn(output, y)
                 # NOTE: L2 regulatization
@@ -413,6 +422,7 @@ class MLKNGreedy(baseMLKN):
                     batch_size=batch_size,
                     shuffle=shuffle
                     ):
+                    update_X = True if _==0 and __==0 else False
                     __ += 1
                     # get ideal gram matrix ####################################
                     ideal_gram = K.ideal_gram(y, y, n_group)
@@ -421,7 +431,7 @@ class MLKNGreedy(baseMLKN):
                     # NOTE: required by CosineSimilarity
 
                     # get output ###############################################
-                    output = self._forward(x, upto=i)
+                    output = self._forward(x, upto=i, update_X=update_X)
                     # output.register_hook(print)
                     # print('output', output) # NOTE: layer0 initial feedforward
                     # passed
@@ -522,9 +532,10 @@ class MLKNGreedy(baseMLKN):
                 batch_size=batch_size,
                 shuffle=shuffle
                 ):
+                update_X = True if _==0 and __==0 else False
                 __ += 1
                 # compute loss
-                output = self._forward(x, upto=i)
+                output = self._forward(x, upto=i, update_X=update_X)
                 # print(output) # NOTE: layer1 initial feedforward passed
 
                 loss = self.output_loss_fn(output, y)

@@ -60,6 +60,7 @@ class kerLinear(torch.nn.Module):
         self.X = X
         # NOTE: save X as an attribute is useful when one wants to combine data
         # from multiple domains
+        self.X_init = X # remembers the initial state of X for mlkn._forward
 
     def forward(self, x, use_saved=False):
         """
