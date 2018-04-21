@@ -255,7 +255,8 @@ def rand_shuffle(*sets):
     """
     # TODO: check if the caller passed in a tuple of sets, this happens when
     # rand_shuffle is called by get_batch. there must be a more elegant way of
-    # doing this
+    # doing this. and this is not immume to cases where there are multiple
+    # nested tuples of 1 element, i.e., things like (((a, b),),)
     if len(sets)==1 and isinstance(sets[0], tuple): sets = sets[0]
 
     lens = list(map(lambda x: x.shape[0], sets))

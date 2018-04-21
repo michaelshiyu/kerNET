@@ -11,9 +11,21 @@ torch.manual_seed(1234)
 class _ensemble(torch.nn.Module):
     def __init__(self):
         super(_ensemble, self).__init__()
+        self._comp_counter = 0
 
-    def add(self):
-        pass
+    def add(self, component):
+        if isinstance(component, kerLinear):
+            setattr(self, 'comp'+str(self._comp_counter), component)
+            self._comp_counter += 1
+
+    def comp_forward(self, x):
+        """Take care of forward of each component."""
+
+    def forward(self, x):
+        for i in range(self._comp_counter):
+            # TODO:
+            comp = getattr(self, 'comp'+str(i))
+            y.add_equal(comp(x))
 
 class kerLinear(torch.nn.Module):
     def __init__(self, ker_dim, out_dim, sigma, bias=True):
@@ -58,7 +70,7 @@ class kerLinear(torch.nn.Module):
         self.weight = self.linear.weight
         self.bias = self.linear.bias
 
-    def forward(self, x, X):
+    def forward(self, x, X, use_saved=False):
         """
         Parameters
         ----------
@@ -67,19 +79,25 @@ class kerLinear(torch.nn.Module):
 
         X : Tensor, shape (n_example, dim)
 
+        use_saved (optional) : bool
+            If True, use saved x_image. This is useful because in layerwise
+            training, x_image is fixed throughout the training for the layer
+            so there is no need for repeated computation.
+
         Returns
         -------
         y : Tensor, shape (batch_size, out_dim)
         """
+        # TODO: use_saved is probably not going to help in batch mode since
+        # for each batch x_image is different. unless save all batches in a dict
+        # indexed by batch#
         if len(X.shape)==1: assert self.ker_dim==1 # does not modify the
         # dimension of X here as this will be done later in self.kerMap
         else: assert self.ker_dim==X.shape[0]
+        if not use_saved:
+            self.x_image = self.kerMap(x, X, self.sigma)
 
-        x_image = self.kerMap(x, X, self.sigma)
-        """
-        print('x_image', x_image)
-        """
-        y = self.linear(x_image)
+        y = self.linear(self.x_image)
         return y
 
 if __name__=='__main__':
