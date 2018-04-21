@@ -13,6 +13,7 @@ sys.path.append('../kernet')
 import backend as K
 from models.mlkn import MLKNClassifier
 from layers.kerlinear import kerLinear
+from layers.ensemble import kerLinearEnsemble
 
 torch.manual_seed(1234)
 
@@ -52,8 +53,11 @@ if __name__=='__main__':
     y_train = Variable(
         train.train_labels.type(dtype), requires_grad=False
         )
-    n_class = 10
+    x_train = x_train[:1000]
+    y_train = y_train[:1000]
 
+    n_class = 10
+    """
     batch_size = 100
     train_loader = torch.utils.data.DataLoader(
         dataset=train,
@@ -65,15 +69,24 @@ if __name__=='__main__':
         batch_size=batch_size,
         shuffle=True
     )
+    """
 
     mlkn = MLKNClassifier()
-    # add layers to the model, see layers/kerlinear for details on kerLinear
-    mlkn.add_layer(
-        kerLinear(ker_dim=x_train.shape[0], out_dim=15, sigma=5, bias=True)
+    # create ensemble layers so that large datasets can be fitted into memory
+    # note that weight initializations for the layers will be different compared
+    # to the ordinary mode
+    linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
+    for i, x_train_batch in enumerate(K.get_batch(x_train, batch_size=100)):
+        use_bias = True if i==0 else False
+        linear_ensemble0.add(
+            kerLinear(X=x_train_batch[0], out_dim=15, sigma=5, bias=use_bias)
         )
-    mlkn.add_layer(
-        kerLinear(ker_dim=x_train.shape[0], out_dim=n_class, sigma=.1, bias=True)
+        linear_ensemble1.add(
+            kerLinear(X=x_train_batch[0], out_dim=n_class, sigma=.1, bias=use_bias)
         )
+    mlkn.add_layer(linear_ensemble0)
+    mlkn.add_layer(linear_ensemble1)
+
     # add optimizer for each layer, this works with any torch.optim.Optimizer
     # note that this model is trained with the proposed layerwise training
     # method by default

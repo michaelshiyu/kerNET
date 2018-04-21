@@ -15,6 +15,7 @@ sys.path.append('../kernet')
 import backend as K
 from models.mlkn import MLKN
 from layers.kerlinear import kerLinear
+from layers.ensemble import kerLinearEnsemble
 
 torch.manual_seed(1234)
 
@@ -70,6 +71,7 @@ if __name__=='__main__':
     x_test, y_test = X[index:], Y[index:]
 
     mlkn = MLKN()
+    '''
     # add layers to the model, see layers/kerlinear for details on kerLinear
     mlkn.add_layer(
         kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
@@ -86,6 +88,24 @@ if __name__=='__main__':
     mlkn.add_layer(
         kerLinear(X=x_train, out_dim=y_train.shape[1], sigma=.1, bias=True)
         )
+    '''
+
+    # create ensemble layers so that large datasets can be fitted into memory
+    # note that weight initializations for the layers will be different compared
+    # to the ordinary mode
+    linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
+    for i, x_train_batch in enumerate(K.get_batch(x_train, batch_size=100)):
+        use_bias = True if i==0 else False
+        linear_ensemble0.add(
+            kerLinear(X=x_train_batch[0], out_dim=15, sigma=5, bias=use_bias)
+        )
+        linear_ensemble1.add(
+            kerLinear(X=x_train_batch[0], out_dim=y_train.shape[1], sigma=.1, bias=use_bias)
+        )
+    mlkn.add_layer(linear_ensemble0)
+    mlkn.add_layer(linear_ensemble1)
+
+
 
     # add optimizer for each layer, this works with any torch.optim.Optimizer
     mlkn.add_optimizer(
