@@ -70,7 +70,7 @@ class baseMLKN(torch.nn.Module):
         """
         setattr(self, 'output_loss_fn', loss_fn)
 
-    def _forward(self, x, X, upto=None):
+    def _forward(self, x, upto=None):
         """
         Feedforward upto layer 'upto'. If 'upto' is not passed,
         this works as the standard forward function in PyTorch.
@@ -80,9 +80,6 @@ class baseMLKN(torch.nn.Module):
 
         x : Tensor, shape (batch_size, dim)
             Batch.
-
-        X : Tensor, shape (n_example, dim)
-            Training set.
 
         upto (optional) : int
             Index for the layer upto (and including) which we will evaluate
@@ -99,18 +96,19 @@ class baseMLKN(torch.nn.Module):
             counter = upto + 1
         else: counter = self._layer_counter
 
-        y_previous, Y_previous = x, X
+        y_previous, Y_previous = x, self.layer0.X
         # TODO: because we always need to compute F_i(X) at each layer i, this
-        # is a huge overhead
+        # is a huge overhead, implement use_saved mode for kerLinear.forward
         # feedforward
         for i in range(counter):
             layer = getattr(self, 'layer'+str(i))
-            y, Y = layer(y_previous, Y_previous), layer(Y_previous, Y_previous)
+            layer.X = Y_previous
+            y, Y = layer(y_previous), layer(Y_previous)
             y_previous, Y_previous = y, Y
 
         return y
 
-    def _forward_volatile(self, x, X, upto=None):
+    def _forward_volatile(self, x, upto=None):
         """
         Feedforward upto layer 'upto' in volatile mode. Use for inference. See
         http://pytorch.org/docs/0.3.1/notes/autograd.html.
@@ -123,8 +121,6 @@ class baseMLKN(torch.nn.Module):
         x : Tensor, shape (batch_size, dim)
             Batch. Must be a leaf Variable.
 
-        X : Tensor, shape (n_example, dim)
-            Training set.
         upto (optional) : int
             Index for the layer upto (and including) which we will evaluate
             the model. 0-indexed.
@@ -135,9 +131,9 @@ class baseMLKN(torch.nn.Module):
             Batch output.
         """
         x.volatile = True
-        return self._forward(x, X, upto)
+        return self._forward(x, upto)
 
-    def get_repr(self, X_test, X, layer=None, batch_size=None):
+    def get_repr(self, X_test, layer=None, batch_size=None):
         """
         Feed random sample x into the network and get its representation at the
         output of a given layer. This is useful mainly for two reasons. First,
@@ -151,9 +147,6 @@ class baseMLKN(torch.nn.Module):
         ----------
         X_test : Tensor, shape (n1_example, dim)
             Random sample whose representation is of interest.
-
-        X : Tensor, shape (n_example, dim)
-            Training set used for fitting the network.
 
         layer (optional) : int
             Output of this layer is the hidden representation. Layers are
@@ -186,7 +179,7 @@ class baseMLKN(torch.nn.Module):
             # NOTE: when only one set is sent to get_batch,
             # we need to use x_test[0] because no automatic unpacking has
             # been done by Python
-            y_test = self._forward_volatile(x_test, X, upto=layer_index)
+            y_test = self._forward_volatile(x_test, upto=layer_index)
 
             if x_test.shape[0]<batch_size: # last batch
                 Y_test[i*batch_size:] = y_test.data[:]
@@ -198,7 +191,7 @@ class baseMLKN(torch.nn.Module):
         # NOTE: this is to make the type of Y_pred consistent with X_test since
         # X_test must be a Variable
 
-    def evaluate(self, X_test, X, batch_size=None):
+    def evaluate(self, X_test, batch_size=None):
         """
         Feed X_test into the network and get raw output.
 
@@ -208,16 +201,13 @@ class baseMLKN(torch.nn.Module):
         X_test : Tensor, shape (n1_example, dim)
             Set to be evaluated.
 
-        X : Tensor, shape (n_example, dim)
-            Training set.
-
         Returns
         -------
         Y_test : Tensor, shape (n1_example, out_dim)
             Raw output from the network.
         """
         # TODO: test
-        return self.get_repr(X_test, X, batch_size=batch_size)
+        return self.get_repr(X_test, batch_size=batch_size)
 
     def fit(self):
         raise NotImplementedError('must be implemented by subclass')
@@ -297,7 +287,7 @@ class MLKN(baseMLKN):
                 shuffle=shuffle
                 ):
                 __ += 1
-                output = self._forward(x, X)
+                output = self._forward(x)
 
                 loss = self.output_loss_fn(output, y)
                 # NOTE: L2 regulatization
@@ -420,7 +410,7 @@ class MLKNGreedy(baseMLKN):
                     # NOTE: required by CosineSimilarity
 
                     # get output ###############################################
-                    output = self._forward(x, X, upto=i)
+                    output = self._forward(x, upto=i)
                     # output.register_hook(print)
                     # print('output', output) # NOTE: layer0 initial feedforward
                     # passed
@@ -523,7 +513,7 @@ class MLKNGreedy(baseMLKN):
                 ):
                 __ += 1
                 # compute loss
-                output = self._forward(x, X, upto=i)
+                output = self._forward(x, upto=i)
                 # print(output) # NOTE: layer1 initial feedforward passed
 
                 loss = self.output_loss_fn(output, y)
@@ -578,7 +568,7 @@ class MLKNClassifier(MLKNGreedy):
     def __init__(self):
         super(MLKNClassifier, self).__init__()
 
-    def predict(self, X_test, X, batch_size=None):
+    def predict(self, X_test, batch_size=None):
         """
         Get predictions from the classifier.
 
@@ -588,16 +578,13 @@ class MLKNClassifier(MLKNGreedy):
         X_test : Tensor, shape (n1_example, dim)
             Test set.
 
-        X : Tensor, shape (n_example, dim)
-            Training set.
-
         Returns
         -------
         Y_pred : Tensor, shape (n1_example,)
             Predicted labels.
         """
         if not batch_size or batch_size>X_test.shape[0]: batch_size=X_test.shape[0]
-        Y_raw = self.evaluate(X_test, X, batch_size=batch_size)
+        Y_raw = self.evaluate(X_test, batch_size=batch_size)
         _, Y_pred = torch.max(Y_raw, dim=1)
 
         return Y_pred

@@ -31,7 +31,7 @@ if __name__=='__main__':
         dtype = torch.cuda.FloatTensor
 
     x, y = load_breast_cancer(return_X_y=True)
-    # x, y = load_digits(return_X_y=True)
+    x, y = load_digits(return_X_y=True)
     # x, y = load_iris(return_X_y=True)
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could
@@ -62,10 +62,10 @@ if __name__=='__main__':
     mlkn = MLKNClassifier()
     # add layers to the model, see layers/kerlinear for details on kerLinear
     mlkn.add_layer(
-        kerLinear(ker_dim=x_train.shape[0], out_dim=15, sigma=5, bias=True)
-        )
+        kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
+        ) # TODO: note that this X here can be different from X in mlkn.fit
     mlkn.add_layer(
-        kerLinear(ker_dim=x_train.shape[0], out_dim=n_class, sigma=.1, bias=True)
+        kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True)
         )
     # add optimizer for each layer, this works with any torch.optim.Optimizer
     # note that this model is trained with the proposed layerwise training
@@ -92,6 +92,6 @@ if __name__=='__main__':
         accumulate_grad=False
         )
     # make a prediction on the test set and print error
-    y_pred = mlkn.predict(X_test=x_test, X=x_train, batch_size=15)
+    y_pred = mlkn.predict(X_test=x_test, batch_size=15)
     err = mlkn.get_error(y_pred, y_test)
     print('error rate: {:.2f}%'.format(err.data[0] * 100))

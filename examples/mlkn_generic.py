@@ -72,19 +72,19 @@ if __name__=='__main__':
     mlkn = MLKN()
     # add layers to the model, see layers/kerlinear for details on kerLinear
     mlkn.add_layer(
-        kerLinear(ker_dim=x_train.shape[0], out_dim=15, sigma=5, bias=True)
+        kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
         )
     # comment out for regression
     """
     mlkn.add_layer(
-        kerLinear(ker_dim=x_train.shape[0], out_dim=n_class, sigma=.1, bias=True)
+        kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True)
         )
     """
 
     # comment out for classification
 
     mlkn.add_layer(
-        kerLinear(ker_dim=x_train.shape[0], out_dim=y_train.shape[1], sigma=.1, bias=True)
+        kerLinear(X=x_train, out_dim=y_train.shape[1], sigma=.1, bias=True)
         )
 
     # add optimizer for each layer, this works with any torch.optim.Optimizer
@@ -107,7 +107,7 @@ if __name__=='__main__':
         accumulate_grad=True
         )
     # make a prediction on the test set and print error
-    y_raw = mlkn.evaluate(X_test=x_test, X=x_train, batch_size=15)
+    y_raw = mlkn.evaluate(X_test=x_test, batch_size=15)
 
     # comment out for regression
     """
