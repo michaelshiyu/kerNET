@@ -53,8 +53,6 @@ if __name__=='__main__':
     y_train = Variable(
         train.train_labels.type(dtype), requires_grad=False
         )
-    x_train = x_train[:1000]
-    y_train = y_train[:1000]
 
     n_class = 10
     """
@@ -76,10 +74,10 @@ if __name__=='__main__':
     # note that weight initializations for the layers will be different compared
     # to the ordinary mode
     linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
-    for i, x_train_batch in enumerate(K.get_batch(x_train, batch_size=100)):
+    for i, x_train_batch in enumerate(K.get_batch(x_train, batch_size=300)):
         use_bias = True if i==0 else False
         linear_ensemble0.add(
-            kerLinear(X=x_train_batch[0], out_dim=15, sigma=5, bias=use_bias)
+            kerLinear(X=x_train_batch[0], out_dim=300, sigma=5, bias=use_bias)
         )
         linear_ensemble1.add(
             kerLinear(X=x_train_batch[0], out_dim=n_class, sigma=.1, bias=use_bias)
@@ -104,7 +102,7 @@ if __name__=='__main__':
     # fit the model
     mlkn.fit(
         n_epoch=(30, 30),
-        batch_size=30,
+        batch_size=100,
         shuffle=True,
         X=x_train,
         Y=y_train,
