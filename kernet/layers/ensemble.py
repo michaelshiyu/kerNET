@@ -5,10 +5,9 @@ import torch
 from torch.autograd import Variable
 
 import sys
-sys.path.append('../kernet/layers')
-from kerlinear import kerLinear
 sys.path.append('../kernet')
 import backend as K
+from layers.kerlinear import kerLinear
 
 torch.manual_seed(1234)
 
@@ -39,7 +38,7 @@ class kerLinearEnsemble(_ensemble):
             yield comp.X
 
     def add(self, component):
-        # assert isinstance(component, kerLinear) # BUG
+        assert isinstance(component, kerLinear)
         setattr(self, 'comp'+str(self._comp_counter), component)
         self._comp_counter += 1
         self.sigma = component.sigma # TODO: allow components to have different

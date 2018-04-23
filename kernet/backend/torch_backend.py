@@ -36,11 +36,10 @@ def gaussianKer(x, y, sigma):
     assert len(x.shape)==2 and len(y.shape)==2 and x.shape[1]==y.shape[1]
     # TODO: if len(x.shape)>=2 but only two dimensions are nontrivial, should
     # allow computation after squeezing into 2darray
-    # TODO: support ndarrays where n>2, e.g., RGB images may have shape
-    # (n_example, 3_channels, channel_dim). shape of return should
-    # always be (n1_example, n2_example), need to be careful with broadcasting
-    # and which dimensions to sum out in this part:
-    # y.sub(x.unsqueeze(1)).pow(2).sum(dim=-1)
+    # TODO: for ndarrays where n>2, e.g., RGB images may have shape
+    # (n_example, channels, height, width), stretch into a long vector
+    # (n_example, channels*height*width) before
+    # passing to this function. this does not make any difference to result.
 
     gram = y.sub(x.unsqueeze(1)).pow(2).sum(dim=-1).mul(-1./(2*sigma**2)).exp()
     # gram = y.sub(x.unsqueeze(1)).pow(2).sum(dim=-1).mul(-sigma).exp()
@@ -225,10 +224,16 @@ def get_batch(*sets, batch_size, shuffle=False):
 
     ...
     """
+    assert batch_size > 0
+
     lens = list(map(lambda x: x.shape[0], sets))
     assert lens.count(lens[0])==len(lens) # make sure all sets are equal in
     # sizes of their 1st dims
     if shuffle: sets = rand_shuffle(sets)
+
+    if batch_size >= lens[0]: batch_size = lens[0]
+    # if batch_size >= lens[0]: yield sets # BUG
+
     n_batch = lens[0] // batch_size
     last_batch = bool(lens[0] % batch_size)
 

@@ -7,8 +7,12 @@ import types
 import torch
 from torch.autograd import Variable
 
+import sys
+sys.path.append('../kernet')
 import backend as K
 from layers.kerlinear import kerLinear
+from layers.ensemble import kerLinearEnsemble
+# BUG: import is buggy if this script is run from kernet/kernet/models/
 
 # TODO: using multiple devices, see
 # http://pytorch.org/docs/0.3.1/notes/multiprocessing.html and nn.DataParallel
@@ -114,7 +118,6 @@ class baseMLKN(torch.nn.Module):
                     # NOTE: if do not update using X_init, shape[1] of this
                     # data will not match data in previous layers, will cause
                     # issue in kerMap
-
             y = layer(y_previous)
             y_previous = y
 
@@ -404,8 +407,7 @@ class MLKNGreedy(baseMLKN):
             optimizer = getattr(self, 'optimizer'+str(i))
             next_layer = getattr(self, 'layer'+str(i+1))
             layer = getattr(self, 'layer'+str(i))
-
-            # assert isinstance(next_layer, kerLinear) # BUG
+            # assert isinstance(next_layer, (kerLinear, kerLinearEnsemble)) # TODO
             # NOTE:
             # torch.nn.Linear cannot pass this. We do this check because each
             # layer uses the kernel function from the next layer to calculate

@@ -105,7 +105,7 @@ if __name__=='__main__':
     mlkn.add_layer(linear_ensemble0)
     mlkn.add_layer(linear_ensemble1)
 
-
+    
 
     # add optimizer for each layer, this works with any torch.optim.Optimizer
     mlkn.add_optimizer(
