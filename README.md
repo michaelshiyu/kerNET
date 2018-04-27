@@ -75,12 +75,8 @@ import backend as K
 linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
 for i, x_train_batch in enumerate(K.get_batch(x_train, batch_size=30)):
     use_bias = True if i==0 else False
-    linear_ensemble0.add(
-        kerLinear(X=x_train_batch[0], out_dim=15, sigma=5, bias=use_bias)
-    )
-    linear_ensemble1.add(
-        kerLinear(X=x_train_batch[0], out_dim=n_class, sigma=.1, bias=use_bias)
-    )
+    linear_ensemble0.add(kerLinear(X=x_train_batch[0], out_dim=15, sigma=5, bias=use_bias))
+    linear_ensemble1.add(kerLinear(X=x_train_batch[0], out_dim=n_class, sigma=.1, bias=use_bias))
 mlkn.add_layer(linear_ensemble0)
 mlkn.add_layer(linear_ensemble1)
 ```
