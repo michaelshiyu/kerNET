@@ -8,7 +8,7 @@ Building a network with kernel machines here is as straightforward as building a
 
 For now, the project is very new and fairly unstable. We have much to add to it and we are also working on optimizing what's already there. Major functionalities have been tested (on CPU) under the following setup:
 - Python 3
-- PyTorch 0.3.1
+- PyTorch 0.3.1 (migration to 0.4.0 in progress)
 
 Currently, the best way to work with this API is by forking it or via ```git clone```. Hope you enjoy it and any suggestion or contribution would be greatly appreciated!
 
@@ -77,6 +77,7 @@ for i, x_train_batch in enumerate(K.get_batch(x_train, batch_size=30)):
     use_bias = True if i==0 else False
     linear_ensemble0.add(kerLinear(X=x_train_batch[0], out_dim=15, sigma=5, bias=use_bias))
     linear_ensemble1.add(kerLinear(X=x_train_batch[0], out_dim=n_class, sigma=.1, bias=use_bias))
+
 mlkn.add_layer(linear_ensemble0)
 mlkn.add_layer(linear_ensemble1)
 ```
