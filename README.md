@@ -60,25 +60,36 @@ from models.mlkn import MLKNClassifier
 mlkn = MLKNClassifier()
 ```
 
-Let's implement a two-layer MLKN with 15 kernel machines on the first layer and ```n_class``` kernel machines on the second (because we will use cross-entropy as our loss function later and train the second layer as a RBFN). ```kerLinear``` is a ```torch.nn.Module``` object that represents a layer of kernel machines which use identical Gaussian kernels ```k(x, y) = exp(-||x-y||_2^2 / (2 * sigma^2))```. ```sigma``` controls the kernel width. One should always set the ```ker_dim``` parameter to the number of examples in your training set for the layer.
+Let's implement a two-layer MLKN with 15 kernel machines on the first layer and ```n_class``` kernel machines on the second (because we will use cross-entropy as our loss function later and train the second layer as a RBFN). ```kerLinear``` is a ```torch.nn.Module``` object that represents a layer of kernel machines which use identical Gaussian kernels ```k(x, y) = exp(-||x-y||_2^2 / (2 * sigma^2))```. ```sigma``` controls the kernel width. For ```X``` in the input layer, pass to it the random sample (usually the training set) you would like to center the kernel machines on, i.e., the set ```{x_i}``` in ```f(u) = ∑_i a_i k(x_i, u) + b```. This set is then an attribute of this layer object and can be visited as ```layer.X```. For non-input layers, pass to ```X``` the raw data you want to center the kernel machines on. At runtime, for layer ```n```, its ```X``` will be updated correctly to ```F_n-1(...(F_0(layer.X))...)```, where ```F_i``` is the mapping of the ```i```th layer.
 ```python
 from layers.kerlinear import kerLinear
-mlkn.add_layer(
-    kerLinear(ker_dim=x_train.shape[0], out_dim=15, sigma=5, bias=True)
-    )
-mlkn.add_layer(
-    kerLinear(ker_dim=x_train.shape[0], out_dim=n_class, sigma=.1, bias=True)
-    )
+mlkn.add_layer(kerLinear(X=x_train, out_dim=15, sigma=5, bias=True))
+mlkn.add_layer(kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True))
 ```
 
-Then add optimizer for each layer. This works with any ```torch.optim.Optimizer```. Each optimizer is in charge of one layer with the order of addition being the same with the order of layers, i.e., the first-added optimizer would be assigned to the first layer (layer closest to the input). For each optimizer, one can specify ```params``` to anything and it will be overridden to the weights of the correct layer automatically before the network is trained when ```fit``` is called. Let's use [Adam](https://arxiv.org/pdf/1412.6980.pdf) as the optimizer for this example. Note that for PyTorch optimizers, ```weight_decay``` is the l2-norm regularization coefficient.
+For large datasets, it can be impossible operate on the entire training set due to insufficient memory. In this case, one can trade parallelism for memory sufficiency by breaking the training set into a few smaller subsets and center a separate ```kerLinear``` object on each subset. This is the same as breaking the Gram matrix into a bunch of submatrices and it will not make any difference to the numerical result. We have implemented a ```kerLinearEnsemble``` class to make this process simpler.
 ```python
-mlkn.add_optimizer(
-    torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=0.1)
+from layers.ensemble import kerLinearEnsemble
+import backend as K
+
+linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
+for i, x_train_batch in enumerate(K.get_batch(x_train, batch_size=30)):
+    use_bias = True if i==0 else False
+    linear_ensemble0.add(
+        kerLinear(X=x_train_batch[0], out_dim=15, sigma=5, bias=use_bias)
     )
-mlkn.add_optimizer(
-    torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=.1)
+    linear_ensemble1.add(
+        kerLinear(X=x_train_batch[0], out_dim=n_class, sigma=.1, bias=use_bias)
     )
+mlkn.add_layer(linear_ensemble0)
+mlkn.add_layer(linear_ensemble1)
+```
+The above script works as follows: there are two ensemble layers, each corresponding to a layer in the MLKN model. For every ```30``` examples in the training set, there are two new ```kerLinear``` layers centered on it. Then they are added to their corresponding ensemble layers as components. Each ensemble layer adds up results from all components as its output. This script will result in the same network and same calculations as the earlier method of adding layers. There will be small numerical differences in final results, however, since the random weight initializations are now different.
+
+Then we add optimizer for each layer. This works with any ```torch.optim.Optimizer```. Each optimizer is in charge of one layer with the order of addition being the same with the order of layers, i.e., the first-added optimizer would be assigned to the first layer (layer closest to the input). For each optimizer, one can specify ```params``` to anything and it will be overridden to the weights of the correct layer automatically before the network is trained when ```fit``` is called. Let's use [Adam](https://arxiv.org/pdf/1412.6980.pdf) as the optimizer for this example. Note that for PyTorch optimizers, ```weight_decay``` is the l2-norm regularization coefficient.
+```python
+mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=0.1))
+mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=.1))
 ```
 
 Specify loss function for the output layer, this works with any PyTorch loss function but let's use ```torch.nn.CrossEntropyLoss``` for this classification task.
@@ -86,7 +97,7 @@ Specify loss function for the output layer, this works with any PyTorch loss fun
 mlkn.add_loss(torch.nn.CrossEntropyLoss())
 ```
 
-Fit the model. For ```n_epoch```, one should pass a tuple of ```int``` with the first number specifying the number of epochs to train the first layer, etc. ```shuffle``` governs if the entire dataset is randomly shuffled at each epoch. If ```accumulate_grad``` is ```True```, the weights are only updated at each epoch instead of each minibatch using the accumulated gradient from all minibatches in that epoch. If it is set to ```False```, there will be an update per minibatch.
+Fit the model. For ```n_epoch```, one should pass a tuple of ```int``` with the first number specifying the number of epochs to train the first layer, etc. ```shuffle``` governs if the entire dataset is randomly shuffled at each epoch. If ```accumulate_grad``` is ```True```, the weights are only updated at each epoch instead of each minibatch using the accumulated gradient from all minibatches in that epoch. If it is set to ```False```, there will be an update per minibatch. Note that parameter ```X``` in ```fit``` is the training set you would like to train your model on, which can potentially be different from the set your kernel machines are centered on (parameter ```X``` when initializing a ```kerLinear``` object).
 ```python
 mlkn.fit(
     n_epoch=(30, 30),
@@ -99,9 +110,9 @@ mlkn.fit(
     )
 ```
 
-Make a prediction on the test set and print error. A special property of MLKN is that for it to do anything, it always needs a reference to its training set. You could think of this as a set of bases to expand your kernel machine on. It boils down to the fact that a kernel machine is nothing but ```f(x) = \sum_{i=1}^n alpha_i k(x_i, x) + b```, where ```{alpha_i: i=1, 2, ..., n}``` and ```b``` are some trainable parameters and ```{x_i: i=1, 2, ..., n}``` is a given random sample that was used as training set. And this is why in a lot of methods that involve evaluating the kernel machines, you see the parameter ```X```. Just feed it with the training set you used to train those kernel machines.
+Make a prediction on the test set and print error.
 ```python
-y_pred = mlkn.predict(X_test=x_test, X=x_train, batch_size=15)
+y_pred = mlkn.predict(X_test=x_test, batch_size=15)
 err = mlkn.get_error(y_pred, y_test)
 print('error rate: {:.2f}%'.format(err.data[0] * 100))
 ```
@@ -121,29 +132,21 @@ from models.mlkn import MLKN
 mlkn = MLKN()
 ```
 
-Adding layers is the same as we did for MLKNClassifier.
+Adding layers is the same as we did for MLKNClassifier. Ensemble layers are also supported.
 ```python
 from layers.kerlinear import kerLinear
-mlkn.add_layer(
-    kerLinear(ker_dim=x_train.shape[0], out_dim=15, sigma=5, bias=True)
-    )
-mlkn.add_layer(
-    kerLinear(ker_dim=x_train.shape[0], out_dim=n_class, sigma=.1, bias=True)
-    )
+mlkn.add_layer(kerLinear(X=x_train, out_dim=15, sigma=5, bias=True))
+mlkn.add_layer(kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True))
 ```
 
 For regression, the dimension of the output layer should be adjusted.
 ```python
-mlkn.add_layer(
-    kerLinear(ker_dim=x_train.shape[0], out_dim=y_train.shape[1], sigma=.1, bias=True)
-    )
+mlkn.add_layer(kerLinear(ker_dim=x_train.shape[0], out_dim=y_train.shape[1], sigma=.1, bias=True))
 ```
 
 Add an optimizer. This works with any ```torch.optim.Optimizer```. Unlike in the layerwise training case, here one optimizer is in charge of the training of the entire network since we are using backpropagation. But of course, this does not mean that all layers have to be trained under exactly the same setting: you could still specify [per-parameter options](http://pytorch.org/docs/master/optim.html) for each layer.
 ```python
-mlkn.add_optimizer(
-    torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=0.1)
-    )
+mlkn.add_optimizer(torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=0.1))
 ```
 
 Specify a loss function. For classification, ```torch.nn.CrossEntropyLoss``` may be an ideal option whereas for regression, ```torch.nn.MSELoss``` is a common choice.
@@ -166,7 +169,7 @@ mlkn.fit(
     accumulate_grad=True
     )
 
-y_raw = mlkn.evaluate(X_test=x_test, X=x_train, batch_size=15)
+y_raw = mlkn.evaluate(X_test=x_test, batch_size=15)
 ```
 
 For classification, one may be interested in the error rate for this test set whereas for regression, MSE.
