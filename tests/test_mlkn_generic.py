@@ -15,6 +15,7 @@ sys.path.append('../kernet')
 import backend as K
 from models.mlkn import MLKN
 from layers.kerlinear import kerLinear
+from layers.ensemble import kerLinearEnsemble
 
 torch.manual_seed(1234)
 
@@ -25,11 +26,12 @@ if __name__=='__main__':
     but not the greedy training method. Thus, it is applicable to any general
     learning problem including classification, regression, etc.
     """
-    # gpu and cpu return identical results
-    x, y = load_breast_cancer(return_X_y=True) # 1.75
-    # x, y = load_digits(return_X_y=True) # 7.79
-    x, y = load_iris(return_X_y=True) # 2.67
-    # x, y = load_boston(return_X_y=True) # 0.1022/206.8818
+    x, y = load_breast_cancer(return_X_y=True) # 1.75; ens 2.46
+    x, y = load_digits(return_X_y=True) # 7.79; ens 17.80
+    # x, y = load_iris(return_X_y=True) # 2.67; ens 2.67
+    # x, y = load_boston(return_X_y=True) # 0.1022/206.8818; ens 0.1212/245.4549
+
+    task = 'classification' # 'regression' or 'classification'
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could
     # do:
@@ -44,16 +46,17 @@ if __name__=='__main__':
     standard = StandardScaler()
     x = standard.fit_transform(x)
 
-    # 0-1 normalization for y, comment this out for classification
-    """
-    y = y.reshape(-1, 1)
-    minmax = MinMaxScaler()
-    y = minmax.fit_transform(y)
-    """
+    if task=='regression':
+        # 0-1 normalization for y
+        y = y.reshape(-1, 1)
+        minmax = MinMaxScaler()
+        y = minmax.fit_transform(y)
 
-    # comment this out for regression
 
-    n_class = int(np.amax(y) + 1)
+    if task=='regression':
+        layer1dim = y.shape[1]
+    elif task=='classification':
+        layer1dim = int(np.amax(y) + 1)
 
 
     dtype = torch.FloatTensor
@@ -71,23 +74,29 @@ if __name__=='__main__':
     x_test, y_test = X[index:], Y[index:]
 
     mlkn = MLKN()
+
     # add layers to the model, see layers/kerlinear for details on kerLinear
-    mlkn.add_layer(
-        kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
-        )
-    # comment out for regression
+    mlkn.add_layer(kerLinear(X=x_train, out_dim=15, sigma=5, bias=True))
 
-    mlkn.add_layer(
-        kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True)
-        )
+    mlkn.add_layer(kerLinear(X=x_train, out_dim=layer1dim, sigma=.1, bias=True))
 
-
-    # comment out for classification
     """
-    mlkn.add_layer(
-        kerLinear(X=x_train, out_dim=y_train.shape[1], sigma=.1, bias=True)
+    # create ensemble layers so that large datasets can be fitted into memory
+    # note that weight initializations for the layers will be different compared
+    # to the ordinary mode
+    linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
+    for i, x_train_batch in enumerate(K.get_batch(x_train, batch_size=100)):
+        use_bias = True if i==0 else False
+        linear_ensemble0.add(
+            kerLinear(X=x_train_batch[0], out_dim=15, sigma=5, bias=use_bias)
         )
+        linear_ensemble1.add(
+            kerLinear(X=x_train_batch[0], out_dim=layer1dim, sigma=.1, bias=use_bias)
+        )
+    mlkn.add_layer(linear_ensemble0)
+    mlkn.add_layer(linear_ensemble1)
     """
+
 
     # add optimizer for each layer, this works with any torch.optim.Optimizer
     mlkn.add_optimizer(
@@ -95,10 +104,13 @@ if __name__=='__main__':
         )
     # specify loss function for the output layer, this works with any
     # PyTorch loss function but it is recommended that you use CrossEntropyLoss
-    mlkn.add_loss(torch.nn.CrossEntropyLoss()) # comment out for regression
-    # mlkn.add_loss(torch.nn.MSELoss()) # comment out for classification
+    if task=='classification':
+        mlkn.add_loss(torch.nn.CrossEntropyLoss())
+    elif task=='regression':
+        mlkn.add_loss(torch.nn.MSELoss())
     if torch.cuda.is_available():
         mlkn.cuda()
+
     # fit the model
     mlkn.fit(
         n_epoch=30,
@@ -108,29 +120,26 @@ if __name__=='__main__':
         Y=y_train,
         accumulate_grad=True
         )
+
     # make a prediction on the test set and print error
     y_raw = mlkn.evaluate(X_test=x_test, batch_size=15)
 
-    # comment out for regression
+    if task=='classification':
+        _, y_pred = torch.max(y_raw, dim=1)
+        y_pred = y_pred.type_as(y_test)
+        err = (y_pred!=y_test).sum().type(torch.FloatTensor).div_(y_test.shape[0])
+        print('error rate: {:.2f}%'.format(err.data[0] * 100))
 
-    _, y_pred = torch.max(y_raw, dim=1)
-    y_pred = y_pred.type_as(y_test)
-    err = (y_pred!=y_test).sum().type(torch.FloatTensor).div_(y_test.shape[0])
-    print('error rate: {:.2f}%'.format(err.data[0] * 100))
+    elif task=='regression':
+        mse = torch.nn.MSELoss()
+        print('mse: {:.4f}'.format(mse(y_raw, y_test).data[0]))
+        if torch.cuda.is_available():
+            y_raw = y_raw.cpu()
+            y_test = y_test.cpu()
+        y_raw_np = y_raw.data.numpy()
+        y_test_np = y_test.data.numpy()
 
-
-    # comment out for classification
-    """
-    mse = torch.nn.MSELoss()
-    print('mse: {:.4f}'.format(mse(y_raw, y_test).data[0]))
-    if torch.cuda.is_available():
-        y_raw = y_raw.cpu()
-        y_test = y_test.cpu()
-    y_raw_np = y_raw.data.numpy()
-    y_test_np = y_test.data.numpy()
-
-    y_raw_np = minmax.inverse_transform(y_raw_np)
-    y_test_np = minmax.inverse_transform(y_test_np)
-    mse = sum((y_raw_np - y_test_np)**2) / len(y_test_np)
-    print('mse(original scale): {:.4f}'.format(mse[0]))
-    """
+        y_raw_np = minmax.inverse_transform(y_raw_np)
+        y_test_np = minmax.inverse_transform(y_test_np)
+        mse = sum((y_raw_np - y_test_np)**2) / len(y_test_np)
+        print('mse(original scale): {:.4f}'.format(mse[0]))
