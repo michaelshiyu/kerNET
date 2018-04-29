@@ -17,6 +17,7 @@ from layers.kerlinear import kerLinear
 from layers.ensemble import kerLinearEnsemble
 
 torch.manual_seed(1234)
+np.random.seed(1234)
 
 if __name__=='__main__':
     """
@@ -35,7 +36,7 @@ if __name__=='__main__':
     # x, y = load_digits(return_X_y=True) # ens 2.46; 4.34 (acc grad)/ ens 4.78; 5.23
     # x, y = load_iris(return_X_y=True) # ens 4.00; 4.00 (acc grad)/ ens 4.00; 4.00
 
-    ensemble = False
+    ensemble = True
     batch_size=30
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could
@@ -79,45 +80,8 @@ if __name__=='__main__':
 
     else:
         # create ensemble layers so that large datasets can be fitted into memory
-        # note that weight initializations for the layers will be different compared
-        # to the ordinary mode
-
-        linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
-
-        for i, x_train_batch in enumerate(
-            K.get_batch(x_train, batch_size=batch_size)
-            ):
-
-            use_bias = True if i==0 else False
-            component0 = kerLinear(
-                X=x_train_batch[0],
-                out_dim=15,
-                sigma=5,
-                bias=use_bias
-                )
-
-            component0.weight.data = \
-                layer0.weight[:,i*batch_size:(i+1)*batch_size].data
-            if use_bias:
-                component0.bias.data = layer0.bias.data
-
-            component1 = kerLinear(
-                X=x_train_batch[0],
-                out_dim=n_class,
-                sigma=.1,
-                bias=use_bias
-                )
-
-            component1.weight.data = \
-                layer1.weight[:,i*batch_size:(i+1)*batch_size].data
-            if use_bias:
-                component1.bias.data = layer1.bias.data
-
-            linear_ensemble0.add(component0)
-            linear_ensemble1.add(component1)
-
-        mlkn.add_layer(linear_ensemble0)
-        mlkn.add_layer(linear_ensemble1)
+        mlkn.add_layer(K.to_ensemble(layer0, batch_size))
+        mlkn.add_layer(K.to_ensemble(layer1, batch_size))
 
     # add optimizer for each layer, this works with any torch.optim.Optimizer
     # note that this model is trained with the proposed layerwise training
@@ -141,14 +105,8 @@ if __name__=='__main__':
         X=x_train,
         Y=y_train,
         n_class=n_class,
-        accumulate_grad=True
+        accumulate_grad=False
         )
-    """
-    for p in mlkn.layer0.parameters():
-        print(p)
-    for p in mlkn.layer1.parameters():
-        print(p)
-    """
 
     # make a prediction on the test set and print error
     y_pred = mlkn.predict(X_test=x_test, batch_size=15)

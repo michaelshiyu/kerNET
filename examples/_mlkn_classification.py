@@ -32,13 +32,13 @@ if __name__=='__main__':
     ])
 
     root = './torchvision_datasets'
-    train = torchvision.datasets.MNIST(
+    train = torchvision.datasets.convex(
         root=root,
         train=True,
         transform=transform,
         download=True
         )
-    test = torchvision.datasets.MNIST(
+    test = torchvision.datasets.convex(
         root=root,
         train=False,
         transform=transform
@@ -65,48 +65,77 @@ if __name__=='__main__':
     )
     """
     '''
-    addr = '/Users/michael/Desktop/Github/data/mnist/'
-    # addr = '/home/michaelshiyu/Github/data/mnist/' # for miner
-    # addr = '/home/administrator/Github/data/mnist/' # for lab
-    # addr = '/home/paperspace/Github/data/mnist/' # for paperspace
-    x_train = Variable(torch.from_numpy(np.load(addr+'mnist_train_img.npy')).type(dtype), requires_grad=False) # when change datasets, change size of validation set
-    y_train = Variable(torch.from_numpy(np.load(addr+'mnist_train_label.npy')).type(dtype), requires_grad=False)
-    x_test = Variable(torch.from_numpy(np.load(addr+'mnist_test_img.npy')).type(dtype), requires_grad=False)
-    y_test = Variable(torch.from_numpy(np.load(addr+'mnist_test_label.npy')).type(dtype), requires_grad=False)
-    x_val = x_train[10000:]
-    y_val = y_train[10000:]
-    x_train = x_train[:10000]
-    y_train = y_train[:10000]
+    # addr = '/Users/michael/Desktop/Github/data/convex/'
+    addr = '/home/michaelshiyu/Github/data/convex/' # for miner
+    # addr = '/home/administrator/Github/data/convex/' # for lab
+    # addr = '/home/paperspace/Github/data/convex/' # for paperspace
+    x_train = Variable(torch.from_numpy(np.load(addr+'convex_train_img.npy')).type(dtype), requires_grad=False) # when change datasets, change size of validation set
+    y_train = Variable(torch.from_numpy(np.load(addr+'convex_train_label.npy')).type(dtype), requires_grad=False)
+    x_test = Variable(torch.from_numpy(np.load(addr+'convex_test_img.npy')).type(dtype), requires_grad=False)
+    y_test = Variable(torch.from_numpy(np.load(addr+'convex_test_label.npy')).type(dtype), requires_grad=False)
+    x_val = x_train[6000:]
+    y_val = y_train[6000:]
+    x_train = x_train[:6000]
+    y_train = y_train[:6000]
     n_class = int(torch.max(y_train) + 1)
 
+    ensemble = True
+    batch_size=300
+
     mlkn = MLKNClassifier()
-    """
-    # create ensemble layers so that large datasets can be fitted into memory
-    # note that weight initializations for the layers will be different compared
-    # to the ordinary mode
-    linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
-    for i, x_train_batch in enumerate(K.get_batch(x_train, batch_size=100)):
-        use_bias = True if i==0 else False
-        linear_ensemble0.add(
-            kerLinear(X=x_train_batch[0], out_dim=15, sigma=5, bias=use_bias)
-        )
-        linear_ensemble1.add(
-            kerLinear(X=x_train_batch[0], out_dim=n_class, sigma=.1, bias=use_bias)
-        )
-    mlkn.add_layer(linear_ensemble0)
-    mlkn.add_layer(linear_ensemble1)
-    """
-    # add layers to the model, see layers/kerlinear for details on kerLinear
-    mlkn.add_layer(
-        kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
-        ) # TODO: note that this X here can be different from X in mlkn.fit
-    # TODO: for non-input layers, pass to X the
+    layer0 = kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
+    layer1 = kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True)
+    # for non-input layers, pass to X the
     # set of raw data you want to center the kernel machines on,
     # for layer n, layer.X will be updated in runtime to
     # F_n-1(...(F_0(layer.X))...)
-    mlkn.add_layer(
-        kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True)
-        )
+
+    if not ensemble:
+        # add layers to the model, see layers/kerlinear for details on kerLinear
+        mlkn.add_layer(layer0)
+        mlkn.add_layer(layer1)
+
+    else:
+        # create ensemble layers so that large datasets can be fitted into memory
+        # note that weight initializations for the layers will be different compared
+        # to the ordinary mode
+
+        linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
+
+        for i, x_train_batch in enumerate(
+            K.get_batch(x_train, batch_size=batch_size)
+            ):
+
+            use_bias = True if i==0 else False
+            component0 = kerLinear(
+                X=x_train_batch[0],
+                out_dim=15,
+                sigma=5,
+                bias=use_bias
+                )
+
+            component0.weight.data = \
+                layer0.weight[:,i*batch_size:(i+1)*batch_size].data
+            if use_bias:
+                component0.bias.data = layer0.bias.data
+
+            component1 = kerLinear(
+                X=x_train_batch[0],
+                out_dim=n_class,
+                sigma=.1,
+                bias=use_bias
+                )
+
+            component1.weight.data = \
+                layer1.weight[:,i*batch_size:(i+1)*batch_size].data
+            if use_bias:
+                component1.bias.data = layer1.bias.data
+
+            linear_ensemble0.add(component0)
+            linear_ensemble1.add(component1)
+
+        mlkn.add_layer(linear_ensemble0)
+        mlkn.add_layer(linear_ensemble1)
 
     # add optimizer for each layer, this works with any torch.optim.Optimizer
     # note that this model is trained with the proposed layerwise training
@@ -125,7 +154,7 @@ if __name__=='__main__':
     # fit the model
     mlkn.fit(
         n_epoch=(30, 30),
-        batch_size=30,
+        batch_size=300,
         shuffle=True,
         X=x_train,
         Y=y_train,

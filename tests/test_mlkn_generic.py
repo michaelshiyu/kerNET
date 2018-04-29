@@ -32,7 +32,7 @@ if __name__=='__main__':
     x, y = load_boston(return_X_y=True) # ens 0.1038/210.2280; 0.1022/206.8818 (acc grad)/ ens 0.0134/27.1864; 0.0123/24.8805
 
     task = 'regression' # 'regression' or 'classification'
-    ensemble = True
+    ensemble = False
     batch_size=30 # for ensemble layers
 
 
@@ -152,7 +152,7 @@ if __name__=='__main__':
         shuffle=True,
         X=x_train,
         Y=y_train,
-        accumulate_grad=False
+        accumulate_grad=True
         )
 
     # make a prediction on the test set and print error

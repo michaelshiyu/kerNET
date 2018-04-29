@@ -44,7 +44,9 @@ class kerLinearEnsemble(_ensemble):
         self.sigma = component.sigma # TODO: allow components to have different
         # sigma?
 
-    def forward(self, x):
+    def forward(self, x): # TODO: under shuffle mode, fit gives different
+    # results if substitute normal layers with ensemble layers, checked that
+    # the randperm vectors in K.rand_shuffle are different in two modes, why?
         out_dims = [(
             getattr(self, 'comp'+str(i)).out_dim
             ) for i in range(self._comp_counter)]
@@ -64,6 +66,7 @@ class kerLinearEnsemble(_ensemble):
         self.out_dim = out_dim
         # print(y)
         return y
+
 
 """
 def baseMLKN.to_ensemble(self, layer, X_batch_size):

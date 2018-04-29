@@ -4,10 +4,14 @@
 from __future__ import division, print_function
 
 import math as m
+import numpy as np
 import torch
 from torch.autograd import Variable
 
-torch.manual_seed(1234)
+import sys
+sys.path.append('../kernet')
+from layers.kerlinear import kerLinear
+from layers.ensemble import kerLinearEnsemble
 
 def gaussianKer(x, y, sigma):
     """
@@ -275,11 +279,50 @@ def rand_shuffle(*sets):
     assert lens.count(lens[0])==len(lens) # make sure all sets are equal in
     # sizes of their 1st dims
 
-    new_index = torch.randperm(lens[0])
+    # new_index = torch.randperm(lens[0]) # BUG: when fit.shuffle=True, this
+    # creates different random indices for kerLinear and kerLinearEnsemble,
+    # which leads to different results
+    new_index = torch.from_numpy(np.random.permutation(lens[0]))
+
     if sets[0].is_cuda: new_index=new_index.cuda()
     sets = list(map(lambda x: x[new_index], sets))
 
     return sets
+
+def to_ensemble(layer, batch_size):
+    """
+    Break a layer object into an equivalent ensemble layer object.
+
+    Parameters
+    ----------
+    layer : kerLinear
+        Supports kerLinear only.
+
+    Returns
+    -------
+    ensemble_layer : kerLinearEnsemble
+    """
+    assert isinstance(layer, kerLinear)
+    X = layer.X
+    ensemble_layer = kerLinearEnsemble()
+    for i, x in enumerate(get_batch(X, batch_size=batch_size)):
+
+        use_bias = True if i==0 else False
+        component = kerLinear(
+            X=x[0],
+            out_dim=layer.out_dim,
+            sigma=layer.sigma,
+            bias=use_bias
+            )
+
+        component.weight.data = \
+            layer.weight[:,i*batch_size:(i+1)*batch_size].data
+        if use_bias:
+            component.bias.data = layer.bias.data
+
+        ensemble_layer.add(component)
+    return ensemble_layer
+
 
 if __name__=='__main__':
     x = torch.FloatTensor([[1, 2]])
