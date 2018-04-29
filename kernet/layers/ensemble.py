@@ -57,9 +57,12 @@ class kerLinearEnsemble(_ensemble):
         if x.is_cuda: y=y.cuda()
 
         for i in range(self._comp_counter):
+            # print(i)
             component = getattr(self, 'comp'+str(i))
+            # print(component.forward(x))
             y = y.add(component.forward(x))
         self.out_dim = out_dim
+        # print(y)
         return y
 
 """

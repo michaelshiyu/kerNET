@@ -84,9 +84,11 @@ class kerLinear(torch.nn.Module):
         # TODO: 3 modes: save, use_saved, do_nothing
 
         if not use_saved:
+            # print(x, self.X)
             self.x_image = self.kerMap(x, self.X, self.sigma)
-
+            # print(self.x_image)
         y = self.linear(self.x_image)
+
         return y
 
 if __name__=='__main__':

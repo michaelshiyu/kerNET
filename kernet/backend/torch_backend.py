@@ -7,6 +7,8 @@ import math as m
 import torch
 from torch.autograd import Variable
 
+torch.manual_seed(1234)
+
 def gaussianKer(x, y, sigma):
     """
     Gaussian kernel: k(x, y) = exp(-||x-y||_2^2 / (2 * sigma^2)).

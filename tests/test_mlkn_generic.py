@@ -26,12 +26,15 @@ if __name__=='__main__':
     but not the greedy training method. Thus, it is applicable to any general
     learning problem including classification, regression, etc.
     """
-    x, y = load_breast_cancer(return_X_y=True) # 1.75; ens 2.46
-    x, y = load_digits(return_X_y=True) # 7.79; ens 17.80
-    # x, y = load_iris(return_X_y=True) # 2.67; ens 2.67
-    # x, y = load_boston(return_X_y=True) # 0.1022/206.8818; ens 0.1212/245.4549
+    x, y = load_breast_cancer(return_X_y=True) # ens 2.11; 1.75
+    # x, y = load_digits(return_X_y=True) # ens 7.56; 7.79
+    # x, y = load_iris(return_X_y=True) # ens 2.67; 2.67
+    x, y = load_boston(return_X_y=True) # ens 0.1038/210.2280; 0.1022/206.8818
 
-    task = 'classification' # 'regression' or 'classification'
+    task = 'regression' # 'regression' or 'classification'
+    ensemble = True
+    batch_size=30 # for ensemble layers
+
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could
     # do:
@@ -75,27 +78,58 @@ if __name__=='__main__':
 
     mlkn = MLKN()
 
-    # add layers to the model, see layers/kerlinear for details on kerLinear
-    mlkn.add_layer(kerLinear(X=x_train, out_dim=15, sigma=5, bias=True))
+    layer0 = kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
+    layer1 = kerLinear(X=x_train, out_dim=layer1dim, sigma=.1, bias=True)
+    # for non-input layers, pass to X the
+    # set of raw data you want to center the kernel machines on,
+    # for layer n, layer.X will be updated in runtime to
+    # F_n-1(...(F_0(layer.X))...)
 
-    mlkn.add_layer(kerLinear(X=x_train, out_dim=layer1dim, sigma=.1, bias=True))
+    if not ensemble:
+        # add layers to the model, see layers/kerlinear for details on kerLinear
+        mlkn.add_layer(layer0)
+        mlkn.add_layer(layer1)
 
-    """
-    # create ensemble layers so that large datasets can be fitted into memory
-    # note that weight initializations for the layers will be different compared
-    # to the ordinary mode
-    linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
-    for i, x_train_batch in enumerate(K.get_batch(x_train, batch_size=100)):
-        use_bias = True if i==0 else False
-        linear_ensemble0.add(
-            kerLinear(X=x_train_batch[0], out_dim=15, sigma=5, bias=use_bias)
-        )
-        linear_ensemble1.add(
-            kerLinear(X=x_train_batch[0], out_dim=layer1dim, sigma=.1, bias=use_bias)
-        )
-    mlkn.add_layer(linear_ensemble0)
-    mlkn.add_layer(linear_ensemble1)
-    """
+    else:
+        # create ensemble layers so that large datasets can be fitted into memory
+        # note that weight initializations for the layers will be different compared
+        # to the ordinary mode
+
+        linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
+        for i, x_train_batch in enumerate(
+            K.get_batch(x_train, batch_size=batch_size)
+            ):
+
+            use_bias = True if i==0 else False
+            component0 = kerLinear(
+                X=x_train_batch[0],
+                out_dim=15,
+                sigma=5,
+                bias=use_bias
+                )
+
+            component0.weight.data = \
+                layer0.weight[:,i*batch_size:(i+1)*batch_size].data
+            if use_bias:
+                component0.bias.data = layer0.bias.data
+
+            component1 = kerLinear(
+                X=x_train_batch[0],
+                out_dim=layer1dim,
+                sigma=.1,
+                bias=use_bias
+                )
+
+            component1.weight.data = \
+                layer1.weight[:,i*batch_size:(i+1)*batch_size].data
+            if use_bias:
+                component1.bias.data = layer1.bias.data
+
+            linear_ensemble0.add(component0)
+            linear_ensemble1.add(component1)
+
+        mlkn.add_layer(linear_ensemble0)
+        mlkn.add_layer(linear_ensemble1)
 
 
     # add optimizer for each layer, this works with any torch.optim.Optimizer
