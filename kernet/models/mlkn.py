@@ -197,10 +197,8 @@ class baseMLKN(torch.nn.Module):
                 x_test,
                 upto=layer_index,
                 update_X=True
-                ) # TODO: do we need update_X for volatile evaluate?
-                # we did this originally, if change
-                # update_X to False, results differs from the old ones
-                # for mlkn_generic, why?
+                ) # NOTE: for test, always set update_X=True since fit does not
+                # update X after taking the last gradient step
 
             if x_test.shape[0]<batch_size: # last batch
                 Y_test[i*batch_size:] = y_test.data[:]
@@ -302,13 +300,17 @@ class MLKN(baseMLKN):
         for _ in range(n_epoch):
             __ = 0
             self.optimizer.zero_grad()
+
             for x, y in K.get_batch(
                 X, Y,
                 batch_size=batch_size,
                 shuffle=shuffle
                 ):
-                # update_X = True if __==0 else False # BUG
-                update_X = True
+                if accumulate_grad:
+                    update_X = True if __==0 else False
+                else:
+                    update_X = True
+
                 __ += 1
                 output = self._forward(x, update_X=update_X)
 
@@ -324,11 +326,14 @@ class MLKN(baseMLKN):
                     loss.data[0]
                     ))
 
-                loss.backward()
+
                 if not accumulate_grad:
+                    loss.backward()
                     self.optimizer.step()
                     self.optimizer.zero_grad()
 
+                else:
+                    loss.backward(retain_graph=True)
             if accumulate_grad:
                 self.optimizer.step()
                 self.optimizer.zero_grad()

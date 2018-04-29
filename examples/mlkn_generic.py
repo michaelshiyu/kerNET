@@ -26,13 +26,13 @@ if __name__=='__main__':
     but not the greedy training method. Thus, it is applicable to any general
     learning problem including classification, regression, etc.
     """
-    x, y = load_breast_cancer(return_X_y=True) # ens 2.11; 1.75
-    # x, y = load_digits(return_X_y=True) # ens 7.56; 7.79
-    # x, y = load_iris(return_X_y=True) # ens 2.67; 2.67
-    x, y = load_boston(return_X_y=True) # ens 0.1038/210.2280; 0.1022/206.8818
+    x, y = load_breast_cancer(return_X_y=True)
+    # x, y = load_digits(return_X_y=True)
+    # x, y = load_iris(return_X_y=True)
+    # x, y = load_boston(return_X_y=True)
 
-    task = 'regression' # 'regression' or 'classification'
-    ensemble = True
+    task = 'classification' # 'regression' or 'classification'
+    ensemble = False
     batch_size=30 # for ensemble layers
 
 
@@ -152,7 +152,7 @@ if __name__=='__main__':
         shuffle=True,
         X=x_train,
         Y=y_train,
-        accumulate_grad=True
+        accumulate_grad=False
         )
 
     # make a prediction on the test set and print error
