@@ -18,6 +18,7 @@ from layers.kerlinear import kerLinear
 from layers.ensemble import kerLinearEnsemble
 
 torch.manual_seed(1234)
+np.random.seed(1234)
 
 if __name__=='__main__':
     """
@@ -29,9 +30,9 @@ if __name__=='__main__':
     # x, y = load_breast_cancer(return_X_y=True)
     # x, y = load_digits(return_X_y=True)
     x, y = load_iris(return_X_y=True)
-    x, y = load_boston(return_X_y=True)
+    # x, y = load_boston(return_X_y=True)
 
-    task = 'regression' # 'regression' or 'classification'
+    task = 'classification' # 'regression' or 'classification'
     ensemble = False
     batch_size=30 # for ensemble layers
 

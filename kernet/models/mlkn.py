@@ -196,9 +196,8 @@ class baseMLKN(torch.nn.Module):
             y_test = self._forward_volatile(
                 x_test,
                 upto=layer_index,
-                update_X=True
-                ) # NOTE: for test, always set update_X=True since fit does not
-                # update X after taking the last gradient step
+                update_X=False
+                )
 
             if x_test.shape[0]<batch_size: # last batch
                 Y_test[i*batch_size:] = y_test.data[:]
@@ -253,7 +252,10 @@ class MLKN(baseMLKN):
         X, Y,
         batch_size=None,
         shuffle=False,
-        accumulate_grad=True):
+        accumulate_grad=True,
+        X_val=None,
+        Y_val=None,
+        val_window=30):
         """
         Parameters
         ----------
@@ -266,6 +268,14 @@ class MLKN(baseMLKN):
         Y : Tensor, shape (n_example, 1) or (n_example,)
             Target data.
 
+        X_val (optional) : Tensor, shape (n_example, dim)
+            Optional validation set.
+
+        Y_val (optional) : Tensor, shape (n_example, 1) or (n_example,)
+
+        val_window (optional) : int
+            The number of epochs between validations.
+
         batch_size (optional) : int
             If not specified, use full mode.
 
@@ -276,6 +286,7 @@ class MLKN(baseMLKN):
             If True, accumulate gradient from each batch and only update the
             weights after each epoch.
         """
+        # TODO: validation
         assert X.shape[0]==Y.shape[0]
 
         if not batch_size or batch_size>X.shape[0]: batch_size = X.shape[0]
@@ -306,10 +317,7 @@ class MLKN(baseMLKN):
                 batch_size=batch_size,
                 shuffle=shuffle
                 ):
-                if accumulate_grad:
-                    update_X = True if __==0 else False
-                else:
-                    update_X = True
+                update_X = True if _==0 and __==0 else False
 
                 __ += 1
                 output = self._forward(x, update_X=update_X)
@@ -331,12 +339,14 @@ class MLKN(baseMLKN):
                     loss.backward()
                     self.optimizer.step()
                     self.optimizer.zero_grad()
+                    self._forward(x, update_X=True) # update X after each step
 
                 else:
                     loss.backward(retain_graph=True)
             if accumulate_grad:
                 self.optimizer.step()
                 self.optimizer.zero_grad()
+                self._forward(x, update_X=True)
 
         print('\n' + '#'*10 + '\n')
         for param in self.parameters(): param.requires_grad=False # freeze
@@ -638,6 +648,7 @@ class MLKNClassifier(MLKNGreedy):
         """
         assert y_pred.shape==y.shape
         y_pred = y_pred.type_as(y)
+
         err = (y_pred!=y).sum().type(torch.FloatTensor).div_(y.shape[0])
         return err
 

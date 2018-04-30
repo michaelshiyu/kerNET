@@ -323,6 +323,63 @@ def to_ensemble(layer, batch_size):
         ensemble_layer.add(component)
     return ensemble_layer
 
+def get_subset(X, Y, n, shuffle=True):
+    """
+    Get a balanced subset from the given set, i.e., subset with an
+    equal number of examples from each class.
+
+    Parameters
+    ----------
+    X : Tensor (n_example, n_dim)
+
+    Y : Tensor (n_example,) or (n_example, 1)
+        Categorical class labels. assert set(Y)==(0, 1, ..., n_class-1)
+
+    n : int
+        Number of total examples to collect.
+
+    shuffle (optional) : bool
+
+    Returns
+    -------
+    x : Tensor (n, n_dim)
+
+    y : (n,) or (n, 1)
+    """
+    # TODO: this function is not in torch because the equivalent of np.concatenate
+    # is not available in torch until 0.4.0
+    
+    if isinstance(X, Variable): X = X.data
+    X_ = X.numpy()
+    if isinstance(Y, Variable): Y = Y.data
+    Y_ = Y.numpy()
+
+    n_class = int(max(Y_) + 1)
+    indices = {}
+    for i in range(n_class):
+        indices[i] = np.where(Y_==i)[0]
+    batch = n // n_class
+    leftover = n % n_class
+    # each class should have at least as many as 'batch' examples
+    x_ = np.concatenate([X_[indices[i][:batch]] for i in range(n_class)], axis=0)
+    y_ = np.concatenate([Y_[indices[i][:batch]] for i in range(n_class)], axis=0)
+    i = 0
+    while i < leftover:
+        x_ = np.concatenate((
+            x_,
+            X_[indices[i % n_class][batch + 1 + i // n_class]][np.newaxis,]
+            ))
+        y_ = np.concatenate((
+            y_,
+            Y_[indices[i % n_class][batch + 1 + i // n_class]][np.newaxis,]
+            ))
+        i += 1
+    x = Variable(torch.from_numpy(x_).type_as(X), requires_grad=False)
+    y = Variable(torch.from_numpy(y_).type_as(Y), requires_grad=False)
+    if shuffle:
+        x, y = rand_shuffle(x, y)
+    return x, y
+
 
 if __name__=='__main__':
     x = torch.FloatTensor([[1, 2]])

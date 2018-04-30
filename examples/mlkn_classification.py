@@ -31,9 +31,10 @@ if __name__=='__main__':
     dtype = torch.FloatTensor
     if torch.cuda.is_available():
         dtype = torch.cuda.FloatTensor
-
-    x, y = load_breast_cancer(return_X_y=True) # ens 2.46; 2.81 (acc grad)/ ens 3.51; 2.11
-    # x, y = load_digits(return_X_y=True) # ens 2.46; 4.34 (acc grad)/ ens 4.78; 5.23
+        
+    # TODO: get new benchmarks, these results are before switching to numpy.random.permutation
+    # x, y = load_breast_cancer(return_X_y=True) # ens 2.46; 2.81 (acc grad)/ ens 3.51; 2.11
+    x, y = load_digits(return_X_y=True) # ens 2.46; 4.34 (acc grad)/ ens 4.78; 5.23
     # x, y = load_iris(return_X_y=True) # ens 4.00; 4.00 (acc grad)/ ens 4.00; 4.00
 
     ensemble = True
@@ -66,8 +67,17 @@ if __name__=='__main__':
 
     mlkn = MLKNClassifier()
 
+    # sparsify the kernel machines on the second layer
+    x_train_, y_train_ = K.get_subset(
+        X=x_train,
+        Y=y_train,
+        n=200,
+        shuffle=True
+        )
+
     layer0 = kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
-    layer1 = kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True)
+    layer1 = kerLinear(X=x_train_, out_dim=n_class, sigma=.1, bias=True)
+
     # for non-input layers, pass to X the
     # set of raw data you want to center the kernel machines on,
     # for layer n, layer.X will be updated in runtime to
