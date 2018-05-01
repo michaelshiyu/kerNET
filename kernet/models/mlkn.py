@@ -255,7 +255,8 @@ class MLKN(baseMLKN):
         accumulate_grad=True,
         X_val=None,
         Y_val=None,
-        val_window=30):
+        val_window=30,
+        val_crit=None):
         """
         Parameters
         ----------
@@ -275,6 +276,10 @@ class MLKN(baseMLKN):
 
         val_window (optional) : int
             The number of epochs between validations.
+
+        val_crit (optional) : callable
+            The loss function against which the model is evaluated on the
+            validation set. Needs to return a torch Variable.
 
         batch_size (optional) : int
             If not specified, use full mode.
@@ -334,7 +339,6 @@ class MLKN(baseMLKN):
                     loss.data[0]
                     ))
 
-
                 if not accumulate_grad:
                     loss.backward()
                     self.optimizer.step()
@@ -347,6 +351,14 @@ class MLKN(baseMLKN):
                 self.optimizer.step()
                 self.optimizer.zero_grad()
                 self._forward(x, update_X=True)
+
+            if not _+1 % val_window:
+                # TODO: batch evaluate
+                Y_val_ = self.evaluate(X_val)
+                print('validation set loss({}): {:.3f}'.format(
+                    val_crit.__class__.__name__,
+                    val_crit(Y_val_, Y_val).data[0]
+                ))
 
         print('\n' + '#'*10 + '\n')
         for param in self.parameters(): param.requires_grad=False # freeze
@@ -643,13 +655,19 @@ class MLKNClassifier(MLKNGreedy):
 
         Returns
         -------
-        err : scalar (or wrapped in a Variable, if one of y or y_pred is)
+        err : scalar
             Error rate.
         """
         assert y_pred.shape==y.shape
-        y_pred = y_pred.type_as(y)
 
-        err = (y_pred!=y).sum().type(torch.FloatTensor).div_(y.shape[0])
+        # y_pred = y_pred.type_as(y)
+        # err = (y_pred!=y).sum().type(torch.FloatTensor).div_(float(y.shape[0])) # BUG
+
+        if y_pred.is_cuda: y_pred = y_pred.cpu()
+        if y.is_cuda: y = y.cpu()
+        err = float(sum(y_pred.data.numpy()!=y.data.numpy())) / y.shape[0]
+        # BUG: for numpy objects converted from torch.tensor, still can access
+        # x.data but x.data is some memory location
         return err
 
     def fit(

@@ -348,11 +348,21 @@ def get_subset(X, Y, n, shuffle=True):
     """
     # TODO: this function is not in torch because the equivalent of np.concatenate
     # is not available in torch until 0.4.0
-    
+    # TODO: maybe a better way to do this?
+    if n > X.shape[0]: n = X.shape[0]
+
     if isinstance(X, Variable): X = X.data
-    X_ = X.numpy()
+    if X.is_cuda:
+        X_ = X.cpu().numpy()
+    else:
+        X_ = X.numpy()
     if isinstance(Y, Variable): Y = Y.data
-    Y_ = Y.numpy()
+    if Y.is_cuda:
+        Y_ = Y.cpu().numpy()
+    else:
+        Y_ = Y.numpy()
+
+    assert X_.shape[0]==Y_.shape[0]
 
     n_class = int(max(Y_) + 1)
     indices = {}

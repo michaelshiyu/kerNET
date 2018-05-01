@@ -31,13 +31,13 @@ if __name__=='__main__':
     dtype = torch.FloatTensor
     if torch.cuda.is_available():
         dtype = torch.cuda.FloatTensor
-        
-    # TODO: get new benchmarks, these results are before switching to numpy.random.permutation
-    # x, y = load_breast_cancer(return_X_y=True) # ens 2.46; 2.81 (acc grad)/ ens 3.51; 2.11
-    x, y = load_digits(return_X_y=True) # ens 2.46; 4.34 (acc grad)/ ens 4.78; 5.23
-    # x, y = load_iris(return_X_y=True) # ens 4.00; 4.00 (acc grad)/ ens 4.00; 4.00
 
-    ensemble = True
+    # TODO: get new benchmarks, these results are before switching to numpy.random.permutation
+    x, y = load_breast_cancer(return_X_y=True) # 1.40 (acc grad)/ 2.11
+    x, y = load_digits(return_X_y=True) # 5.23 (acc grad)/ 5.45
+    x, y = load_iris(return_X_y=True) # 9.33 (acc grad)/ 8.00
+
+    ensemble = False
     batch_size=30
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could
@@ -74,9 +74,9 @@ if __name__=='__main__':
         n=200,
         shuffle=True
         )
-
+    
     layer0 = kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
-    layer1 = kerLinear(X=x_train_, out_dim=n_class, sigma=.1, bias=True)
+    layer1 = kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True)
 
     # for non-input layers, pass to X the
     # set of raw data you want to center the kernel machines on,
@@ -115,10 +115,10 @@ if __name__=='__main__':
         X=x_train,
         Y=y_train,
         n_class=n_class,
-        accumulate_grad=False
+        accumulate_grad=True
         )
 
     # make a prediction on the test set and print error
     y_pred = mlkn.predict(X_test=x_test, batch_size=15)
     err = mlkn.get_error(y_pred, y_test)
-    print('error rate: {:.2f}%'.format(err.data[0] * 100))
+    print('error rate: {:.2f}%'.format(err * 100))

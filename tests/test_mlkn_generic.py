@@ -18,6 +18,7 @@ from layers.kerlinear import kerLinear
 from layers.ensemble import kerLinearEnsemble
 
 torch.manual_seed(1234)
+np.random.seed(1234)
 
 if __name__=='__main__':
     """
@@ -26,10 +27,10 @@ if __name__=='__main__':
     but not the greedy training method. Thus, it is applicable to any general
     learning problem including classification, regression, etc.
     """
-    x, y = load_breast_cancer(return_X_y=True) # ens 2.11; 1.75 (acc grad)/ ens 4.91; 1.75
-    # x, y = load_digits(return_X_y=True) # ens 7.56; 7.79 (acc grad)/ ens 4.12; 6.01
-    # x, y = load_iris(return_X_y=True) # ens 2.67; 2.67 (acc grad)/ ens 4.00; 4.00
-    x, y = load_boston(return_X_y=True) # ens 0.1038/210.2280; 0.1022/206.8818 (acc grad)/ ens 0.0134/27.1864; 0.0123/24.8805
+    x, y = load_breast_cancer(return_X_y=True) # 3.51 (acc grad); 2.46
+    x, y = load_digits(return_X_y=True) # 10.01 (acc grad); 4.89
+    x, y = load_iris(return_X_y=True) # 1.33 (acc grad); 5.33
+    x, y = load_boston(return_X_y=True) # 0.0263 (acc grad); 0.0275
 
     task = 'regression' # 'regression' or 'classification'
     ensemble = False
@@ -92,45 +93,8 @@ if __name__=='__main__':
 
     else:
         # create ensemble layers so that large datasets can be fitted into memory
-        # note that weight initializations for the layers will be different compared
-        # to the ordinary mode
-
-        linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
-        for i, x_train_batch in enumerate(
-            K.get_batch(x_train, batch_size=batch_size)
-            ):
-
-            use_bias = True if i==0 else False
-            component0 = kerLinear(
-                X=x_train_batch[0],
-                out_dim=15,
-                sigma=5,
-                bias=use_bias
-                )
-
-            component0.weight.data = \
-                layer0.weight[:,i*batch_size:(i+1)*batch_size].data
-            if use_bias:
-                component0.bias.data = layer0.bias.data
-
-            component1 = kerLinear(
-                X=x_train_batch[0],
-                out_dim=layer1dim,
-                sigma=.1,
-                bias=use_bias
-                )
-
-            component1.weight.data = \
-                layer1.weight[:,i*batch_size:(i+1)*batch_size].data
-            if use_bias:
-                component1.bias.data = layer1.bias.data
-
-            linear_ensemble0.add(component0)
-            linear_ensemble1.add(component1)
-
-        mlkn.add_layer(linear_ensemble0)
-        mlkn.add_layer(linear_ensemble1)
-
+        mlkn.add_layer(K.to_ensemble(layer0, batch_size))
+        mlkn.add_layer(K.to_ensemble(layer1, batch_size))
 
     # add optimizer for each layer, this works with any torch.optim.Optimizer
     mlkn.add_optimizer(
@@ -152,7 +116,7 @@ if __name__=='__main__':
         shuffle=True,
         X=x_train,
         Y=y_train,
-        accumulate_grad=True
+        accumulate_grad=False
         )
 
     # make a prediction on the test set and print error
@@ -160,9 +124,10 @@ if __name__=='__main__':
 
     if task=='classification':
         _, y_pred = torch.max(y_raw, dim=1)
-        y_pred = y_pred.type_as(y_test)
-        err = (y_pred!=y_test).sum().type(torch.FloatTensor).div_(y_test.shape[0])
-        print('error rate: {:.2f}%'.format(err.data[0] * 100))
+        if y_pred.is_cuda: y_pred = y_pred.cpu()
+        if y_test.is_cuda: y_test = y_test.cpu()
+        err = float(sum(y_pred.data.numpy()!=y_test.data.numpy()))/y_test.shape[0]
+        print('error rate: {:.2f}%'.format(err * 100))
 
     elif task=='regression':
         mse = torch.nn.MSELoss()

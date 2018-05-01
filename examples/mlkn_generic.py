@@ -27,12 +27,12 @@ if __name__=='__main__':
     but not the greedy training method. Thus, it is applicable to any general
     learning problem including classification, regression, etc.
     """
-    # x, y = load_breast_cancer(return_X_y=True)
-    # x, y = load_digits(return_X_y=True)
-    x, y = load_iris(return_X_y=True)
-    # x, y = load_boston(return_X_y=True)
+    x, y = load_breast_cancer(return_X_y=True) # 3.51 (acc grad); 2.46
+    x, y = load_digits(return_X_y=True) # 10.01 (acc grad); 4.89
+    x, y = load_iris(return_X_y=True) # 1.33 (acc grad); 5.33
+    x, y = load_boston(return_X_y=True) # 0.0263 (acc grad); 0.0275
 
-    task = 'classification' # 'regression' or 'classification'
+    task = 'regression' # 'regression' or 'classification'
     ensemble = False
     batch_size=30 # for ensemble layers
 
@@ -116,7 +116,7 @@ if __name__=='__main__':
         shuffle=True,
         X=x_train,
         Y=y_train,
-        accumulate_grad=True
+        accumulate_grad=False
         )
 
     # make a prediction on the test set and print error
@@ -124,9 +124,10 @@ if __name__=='__main__':
 
     if task=='classification':
         _, y_pred = torch.max(y_raw, dim=1)
-        y_pred = y_pred.type_as(y_test)
-        err = (y_pred!=y_test).sum().type(torch.FloatTensor).div_(y_test.shape[0])
-        print('error rate: {:.2f}%'.format(err.data[0] * 100))
+        if y_pred.is_cuda: y_pred = y_pred.cpu()
+        if y_test.is_cuda: y_test = y_test.cpu()
+        err = float(sum(y_pred.data.numpy()!=y_test.data.numpy()))/y_test.shape[0]
+        print('error rate: {:.2f}%'.format(err * 100))
 
     elif task=='regression':
         mse = torch.nn.MSELoss()
