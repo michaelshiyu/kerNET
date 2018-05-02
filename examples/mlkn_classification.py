@@ -34,8 +34,8 @@ if __name__=='__main__':
 
     # TODO: get new benchmarks, these results are before switching to numpy.random.permutation
     x, y = load_breast_cancer(return_X_y=True) # 1.40 (acc grad)/ 2.11
-    x, y = load_digits(return_X_y=True) # 5.23 (acc grad)/ 5.45
-    x, y = load_iris(return_X_y=True) # 9.33 (acc grad)/ 8.00
+    # x, y = load_digits(return_X_y=True) # 5.23 (acc grad)/ 5.45
+    # x, y = load_iris(return_X_y=True) # 9.33 (acc grad)/ 8.00
 
     ensemble = False
     batch_size=30
@@ -74,7 +74,7 @@ if __name__=='__main__':
         n=200,
         shuffle=True
         )
-    
+
     layer0 = kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
     layer1 = kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True)
 
@@ -115,10 +115,14 @@ if __name__=='__main__':
         X=x_train,
         Y=y_train,
         n_class=n_class,
-        accumulate_grad=True
+        accumulate_grad=True,
+        X_val=x_test,
+        Y_val=y_test,
+        val_window=5,
+        val_crit=K.L0Loss
         )
 
     # make a prediction on the test set and print error
     y_pred = mlkn.predict(X_test=x_test, batch_size=15)
-    err = mlkn.get_error(y_pred, y_test)
+    err = K.L0Loss(y_pred, y_test)
     print('error rate: {:.2f}%'.format(err * 100))

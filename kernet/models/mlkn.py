@@ -516,7 +516,11 @@ class MLKNGreedy(baseMLKN):
         X, Y,
         batch_size=None,
         shuffle=False,
-        accumulate_grad=True
+        accumulate_grad=True,
+        X_val=None,
+        Y_val=None,
+        val_window=30,
+        val_crit=None
         ):
         """
         Fit the last layer.
@@ -601,6 +605,25 @@ class MLKNGreedy(baseMLKN):
                 optimizer.step()
                 optimizer.zero_grad()
 
+            if X_val is not None and _+1 % val_window!=0:
+                # TODO: maybe need some checks here on val_crit
+                # TODO: this is a very messy part
+
+                if val_crit.__name__=='L0Loss':
+                    val_loss_name = val_crit.__name__ + ' (%) '
+                    Y_val_ = self.predict(X_val, batch_size=batch_size)
+                    val_loss = val_crit(Y_val_, Y_val) * 100
+                else:
+                    # assumes val_crit is a torch loss class
+                    val_loss_name = val_crit.__name__
+                    Y_val_ = self.evaluate(X_val, batch_size=batch_size)
+                    val_loss = val_crit()(Y_val_, Y_val).data[0]
+
+                print('\nvalidation set loss({}): {:.3f}\n'.format(
+                    val_loss_name,
+                    val_loss
+                    ))
+
         print('\n' + '#'*10 + '\n')
         for param in layer.parameters(): param.requires_grad=False # freeze
         # this layer again
@@ -640,36 +663,6 @@ class MLKNClassifier(MLKNGreedy):
 
         return Y_pred
 
-    def get_error(self, y_pred, y):
-        """
-        Compute prediction error rate.
-
-        Parameters
-        ----------
-
-        y_pred : Tensor, shape (batch_size,)
-            Predicted labels.
-
-        y : Tensor, shape (batch_size,)
-            True labels.
-
-        Returns
-        -------
-        err : scalar
-            Error rate.
-        """
-        assert y_pred.shape==y.shape
-
-        # y_pred = y_pred.type_as(y)
-        # err = (y_pred!=y).sum().type(torch.FloatTensor).div_(float(y.shape[0])) # BUG
-
-        if y_pred.is_cuda: y_pred = y_pred.cpu()
-        if y.is_cuda: y = y.cpu()
-        err = float(sum(y_pred.data.numpy()!=y.data.numpy())) / y.shape[0]
-        # BUG: for numpy objects converted from torch.tensor, still can access
-        # x.data but x.data is some memory location
-        return err
-
     def fit(
         self,
         n_epoch,
@@ -677,7 +670,11 @@ class MLKNClassifier(MLKNGreedy):
         n_class,
         batch_size=None,
         shuffle=False,
-        accumulate_grad=True):
+        accumulate_grad=True,
+        X_val=None,
+        Y_val=None,
+        val_window=30,
+        val_crit=None):
         """
         Parameters
         ----------
@@ -694,6 +691,18 @@ class MLKNClassifier(MLKNGreedy):
             Categorical labels for the set.
 
         n_class : int
+
+        X_val (optional) : Tensor, shape (n_example, dim)
+            Optional validation set.
+
+        Y_val (optional) : Tensor, shape (n_example, 1) or (n_example,)
+
+        val_window (optional) : int
+            The number of epochs between validations.
+
+        val_crit (optional) : callable or torch loss class
+            The loss function against which the model is evaluated on the
+            validation set. Needs to return a torch Variable.
 
         batch_size (optional) : int
             If not specified, use full mode.
@@ -722,7 +731,11 @@ class MLKNClassifier(MLKNGreedy):
             X, Y,
             batch_size=batch_size,
             shuffle=shuffle,
-            accumulate_grad=accumulate_grad
+            accumulate_grad=accumulate_grad,
+            X_val=X_val,
+            Y_val=Y_val,
+            val_window=val_window,
+            val_crit=val_crit
             )
         print('Classifier trained.')
 

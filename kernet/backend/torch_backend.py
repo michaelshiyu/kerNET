@@ -323,6 +323,36 @@ def to_ensemble(layer, batch_size):
         ensemble_layer.add(component)
     return ensemble_layer
 
+def L0Loss(y_pred, y):
+    """
+    Compute prediction error rate. This is not a differentiable loss function.
+
+    Parameters
+    ----------
+
+    y_pred : Tensor, shape (batch_size,)
+        Predicted labels.
+
+    y : Tensor, shape (batch_size,)
+        True labels.
+
+    Returns
+    -------
+    err : scalar
+        Error rate.
+    """
+    assert y_pred.shape==y.shape
+
+    # y_pred = y_pred.type_as(y)
+    # err = (y_pred!=y).sum().type(torch.FloatTensor).div_(float(y.shape[0])) # BUG
+
+    if y_pred.is_cuda: y_pred = y_pred.cpu()
+    if y.is_cuda: y = y.cpu()
+    err = float(sum(y_pred.data.numpy()!=y.data.numpy())) / y.shape[0]
+    # BUG: for numpy objects converted from torch.tensor, still can access
+    # x.data but x.data is some memory location
+    return err
+
 def get_subset(X, Y, n, shuffle=True):
     """
     Get a balanced subset from the given set, i.e., subset with an
