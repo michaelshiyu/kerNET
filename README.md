@@ -67,21 +67,27 @@ mlkn.add_layer(kerLinear(X=x_train, out_dim=15, sigma=5, bias=True))
 mlkn.add_layer(kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True))
 ```
 
-For large datasets, it can be impossible operate on the entire training set due to insufficient memory. In this case, one can trade parallelism for memory sufficiency by breaking the training set into a few smaller subsets and center a separate ```kerLinear``` object on each subset. This is the same as breaking the Gram matrix into a bunch of submatrices and it will not make any difference to the numerical result. We have implemented a ```kerLinearEnsemble``` class to make this process simpler.
+For large datasets, it can be impossible operate on the entire training set due to insufficient memory. In this case, one can trade parallelism for memory sufficiency by breaking the training set into a few smaller subsets and center a separate ```kerLinear``` object on each subset. This is the same as breaking the Gram matrix into a bunch of submatrices and it will not make any difference to the numerical result. We have implemented a ```kerLinearEnsemble``` class and a helper function '''to_ensemble''' to make this process simpler. The script below will result in the same network and same calculations as the earlier method of adding layers.
 ```python
+from layers.kerlinear import kerLinear
 from layers.ensemble import kerLinearEnsemble
 import backend as K
 
-linear_ensemble0, linear_ensemble1 = kerLinearEnsemble(), kerLinearEnsemble()
-for i, x_train_batch in enumerate(K.get_batch(x_train, batch_size=30)):
-    use_bias = True if i==0 else False
-    linear_ensemble0.add(kerLinear(X=x_train_batch[0], out_dim=15, sigma=5, bias=use_bias))
-    linear_ensemble1.add(kerLinear(X=x_train_batch[0], out_dim=n_class, sigma=.1, bias=use_bias))
+ensemble = True
+batch_size = 30
 
-mlkn.add_layer(linear_ensemble0)
-mlkn.add_layer(linear_ensemble1)
+layer0 = kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
+layer1 = kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True)
+
+if not ensemble:
+    mlkn.add_layer(layer0)
+    mlkn.add_layer(layer1)
+
+else:
+    # create equivalent ensemble layers so that large datasets can be fitted into memory
+    mlkn.add_layer(K.to_ensemble(layer0, batch_size))
+    mlkn.add_layer(K.to_ensemble(layer1, batch_size))
 ```
-The above script works as follows: there are two ensemble layers, each corresponding to a layer in the MLKN model. For every ```30``` examples in the training set, there are two new ```kerLinear``` layers centered on it. Then they are added to their corresponding ensemble layers as components. Each ensemble layer adds up results from all components as its output. This script will result in the same network and same calculations as the earlier method of adding layers. There will be small numerical differences in final results, however, since the random weight initializations are now different.
 
 Then we add optimizer for each layer. This works with any ```torch.optim.Optimizer```. Each optimizer is in charge of one layer with the order of addition being the same with the order of layers, i.e., the first-added optimizer would be assigned to the first layer (layer closest to the input). For each optimizer, one can specify ```params``` to anything and it will be overridden to the weights of the correct layer automatically before the network is trained when ```fit``` is called. Let's use [Adam](https://arxiv.org/pdf/1412.6980.pdf) as the optimizer for this example. Note that for PyTorch optimizers, ```weight_decay``` is the l2-norm regularization coefficient.
 ```python
