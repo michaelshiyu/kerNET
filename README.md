@@ -67,7 +67,7 @@ mlkn.add_layer(kerLinear(X=x_train, out_dim=15, sigma=5, bias=True))
 mlkn.add_layer(kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True))
 ```
 
-For large datasets, it can be impossible operate on the entire training set due to insufficient memory. In this case, one can trade parallelism for memory sufficiency by breaking the training set into a few smaller subsets and center a separate ```kerLinear``` object on each subset. This is the same as breaking the Gram matrix into a bunch of submatrices and it will not make any difference to the numerical result. We have implemented a ```kerLinearEnsemble``` class and a helper function '''to_ensemble''' to make this process simpler. The script below will result in the same network and same calculations as the earlier method of adding layers.
+For large datasets, it can be impossible operate on the entire training set due to insufficient memory. In this case, one can trade parallelism for memory sufficiency by breaking the training set into a few smaller subsets and center a separate ```kerLinear``` object on each subset. This is the same as breaking the Gram matrix into a bunch of submatrices and it will not make any difference to the numerical result. We have implemented a ```kerLinearEnsemble``` class and a helper function ```to_ensemble``` to make this process simpler. The script below will result in the same network and same calculations as the earlier method of adding layers.
 ```python
 from layers.kerlinear import kerLinear
 from layers.ensemble import kerLinearEnsemble
