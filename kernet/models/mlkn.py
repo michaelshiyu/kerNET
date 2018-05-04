@@ -267,7 +267,6 @@ class MLKN(baseMLKN):
             If True, accumulate gradient from each batch and only update the
             weights after each epoch.
         """
-        # TODO: validation
         assert X.shape[0]==Y.shape[0]
 
         if not batch_size or batch_size>X.shape[0]: batch_size = X.shape[0]

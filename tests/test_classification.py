@@ -32,12 +32,11 @@ if __name__=='__main__':
     if torch.cuda.is_available():
         dtype = torch.cuda.FloatTensor
 
-    # TODO: get new benchmarks, these results are before switching to numpy.random.permutation
     x, y = load_breast_cancer(return_X_y=True) # 1.40 (acc grad)/ 2.11
-    x, y = load_digits(return_X_y=True) # 5.23 (acc grad)/ 5.45
-    x, y = load_iris(return_X_y=True) # 9.33 (acc grad)/ 8.00
+    # x, y = load_digits(return_X_y=True) # 5.23 (acc grad)/ 5.45
+    # x, y = load_iris(return_X_y=True) # 9.33 (acc grad)/ 8.00
 
-    ensemble = False
+    ensemble = True
     batch_size=30
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could
@@ -55,7 +54,7 @@ if __name__=='__main__':
     n_class = int(np.amax(y) + 1)
 
     X = Variable(torch.from_numpy(x).type(dtype), requires_grad=False)
-    Y = Variable(torch.from_numpy(y).type(dtype), requires_grad=False)
+    Y = Variable(torch.from_numpy(y).type(torch.LongTensor), requires_grad=False)
 
     # randomly permute data
     X, Y = K.rand_shuffle(X, Y)
@@ -66,8 +65,9 @@ if __name__=='__main__':
     x_test, y_test = X[index:], Y[index:]
 
     mlkn = MLKNClassifier()
-    """
+
     # sparsify the kernel machines on the second layer
+    """
     x_train_, y_train_ = K.get_subset(
         X=x_train,
         Y=y_train,
@@ -75,6 +75,7 @@ if __name__=='__main__':
         shuffle=True
         )
     """
+
     layer0 = kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
     layer1 = kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True)
 
@@ -105,6 +106,11 @@ if __name__=='__main__':
     # specify loss function for the output layer, this works with any
     # PyTorch loss function but it is recommended that you use CrossEntropyLoss
     mlkn.add_loss(torch.nn.CrossEntropyLoss())
+
+    # also add a metric to evaluate the model, this is not used for training.
+    # here we use classification error rate.
+    mlkn.add_metric(K.L0Loss())
+
     if torch.cuda.is_available():
         mlkn.cuda()
     # fit the model
@@ -115,10 +121,11 @@ if __name__=='__main__':
         X=x_train,
         Y=y_train,
         n_class=n_class,
-        accumulate_grad=True
+        accumulate_grad=False,
+        X_val=x_train,
+        Y_val=y_train,
+        val_window=5,
         )
 
     # make a prediction on the test set and print error
-    y_pred = mlkn.predict(X_test=x_test, batch_size=15)
-    err = mlkn.get_error(y_pred, y_test)
-    print('error rate: {:.2f}%'.format(err * 100))
+    mlkn.evaluate(X_test=x_test, Y_test=y_test, batch_size=15)

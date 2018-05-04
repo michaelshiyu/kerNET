@@ -29,10 +29,10 @@ if __name__=='__main__':
     """
     x, y = load_breast_cancer(return_X_y=True) # 3.51 (acc grad); 2.46
     # x, y = load_digits(return_X_y=True) # 10.01 (acc grad); 4.89
-    # x, y = load_iris(return_X_y=True) # 1.33 (acc grad); 5.33
-    # x, y = load_boston(return_X_y=True) # 0.0263 (acc grad); 0.0275
+    x, y = load_iris(return_X_y=True) # 1.33 (acc grad); 5.33
+    x, y = load_boston(return_X_y=True) # 0.0263 (acc grad); 0.0275
 
-    task = 'classification' # 'regression' or 'classification'
+    task = 'regression' # 'regression' or 'classification'
     ensemble = False
     batch_size=30 # for ensemble layers
 
