@@ -28,11 +28,11 @@ if __name__=='__main__':
     learning problem including classification, regression, etc.
     """
     x, y = load_breast_cancer(return_X_y=True) # 3.51 (acc grad); 2.46
-    x, y = load_digits(return_X_y=True) # 10.01 (acc grad); 4.89
-    x, y = load_iris(return_X_y=True) # 1.33 (acc grad); 5.33
-    x, y = load_boston(return_X_y=True) # 0.0263 (acc grad); 0.0275
+    # x, y = load_digits(return_X_y=True) # 10.01 (acc grad); 4.89
+    # x, y = load_iris(return_X_y=True) # 1.33 (acc grad); 5.33
+    # x, y = load_boston(return_X_y=True) # 0.0263 (acc grad); 0.0275
 
-    task = 'regression' # 'regression' or 'classification'
+    task = 'classification' # 'regression' or 'classification'
     ensemble = False
     batch_size=30 # for ensemble layers
 
@@ -104,8 +104,10 @@ if __name__=='__main__':
     # PyTorch loss function but it is recommended that you use CrossEntropyLoss
     if task=='classification':
         mlkn.add_loss(torch.nn.CrossEntropyLoss())
+        mlkn.add_metric(K.L0Loss())
     elif task=='regression':
         mlkn.add_loss(torch.nn.MSELoss())
+        mlkn.add_metric(torch.nn.MSELoss())
     if torch.cuda.is_available():
         mlkn.cuda()
 
@@ -116,22 +118,15 @@ if __name__=='__main__':
         shuffle=True,
         X=x_train,
         Y=y_train,
-        accumulate_grad=False
+        accumulate_grad=True,
+        X_val=x_train,
+        Y_val=y_train,
+        val_window=5
         )
 
-    # make a prediction on the test set and print error
-    y_raw = mlkn.evaluate(X_test=x_test, batch_size=15)
+    y_raw = mlkn.evaluate(X_test=x_test, Y_test=y_test)
 
-    if task=='classification':
-        _, y_pred = torch.max(y_raw, dim=1)
-        if y_pred.is_cuda: y_pred = y_pred.cpu()
-        if y_test.is_cuda: y_test = y_test.cpu()
-        err = float(sum(y_pred.data.numpy()!=y_test.data.numpy()))/y_test.shape[0]
-        print('error rate: {:.2f}%'.format(err * 100))
-
-    elif task=='regression':
-        mse = torch.nn.MSELoss()
-        print('mse: {:.4f}'.format(mse(y_raw, y_test).data[0]))
+    if task=='regression':
         if torch.cuda.is_available():
             y_raw = y_raw.cpu()
             y_test = y_test.cpu()
@@ -141,4 +136,4 @@ if __name__=='__main__':
         y_raw_np = minmax.inverse_transform(y_raw_np)
         y_test_np = minmax.inverse_transform(y_test_np)
         mse = sum((y_raw_np - y_test_np)**2) / len(y_test_np)
-        print('mse(original scale): {:.4f}'.format(mse[0]))
+        print('MSELoss(original scale): {:.4f}'.format(mse[0]))

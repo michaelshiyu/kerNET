@@ -59,23 +59,31 @@ class baseMLKN(torch.nn.Module):
 
     def add_loss(self, loss_fn):
         """
-        Specify loss function for the last layer. We recommend using
-        CrossEntropyLoss (CrossEntropyLoss(output, y), in PyTorch, is
-        equivalent to NLLLoss(logsoftmax(output), y), where logsoftmax =
-        torch.nn.LogSoftmax(dim=1) for output Tensor of shape
-        (n_example, n_class)). Base of the log functions in these operations
-        is e.
-
-        Using other loss functions may cause unexpected behaviors since
-        we have only tested the model with CrossEntropyLoss.
+        Specify loss function for the last layer. This is the objective function
+        to be minimized by the optimizer.
 
         Parameters
         ----------
-        loss_fn : a torch loss object
+        loss_fn : callable, torch loss object
         """
+        # CrossEntropyLoss (CrossEntropyLoss(output, y), in PyTorch, is
+        # equivalent to NLLLoss(logsoftmax(output), y), where logsoftmax =
+        # torch.nn.LogSoftmax(dim=1) for output Tensor of shape
+        # (n_example, n_class)). Base of the log functions in these operations
+        # is e.
         setattr(self, 'output_loss_fn', loss_fn)
 
-    def _forward(self, x, upto=None, update_X=False):
+    def add_metric(self, metric_fn):
+        """
+        Specify a metric against which the model is evaluated.
+
+        Parameters
+        ----------
+        metric_fn : callable, torch loss object
+        """
+        setattr(self, '_metric_fn', metric_fn)
+
+    def forward(self, x, upto=None, update_X=False):
         """
         Feedforward upto layer 'upto'. If 'upto' is not passed,
         this works as the standard forward function in PyTorch.
@@ -112,9 +120,9 @@ class baseMLKN(torch.nn.Module):
                 if isinstance(layer.X, types.GeneratorType): # for ensemble layer
                     for j in range(layer._comp_counter):
                         comp = getattr(layer, 'comp'+str(j))
-                        comp.X = self._forward(comp.X_init, upto=i-1)
+                        comp.X = self.forward(comp.X_init, upto=i-1)
                 else:
-                    layer.X = self._forward(layer.X_init, upto=i-1)
+                    layer.X = self.forward(layer.X_init, upto=i-1)
                     # NOTE: if do not update using X_init, shape[1] of this
                     # data will not match data in previous layers, will cause
                     # issue in kerMap
@@ -123,55 +131,26 @@ class baseMLKN(torch.nn.Module):
 
         return y
 
-    def _forward_volatile(self, x, upto=None, update_X=False):
+    def evaluate(self, X_test, Y_test=None, layer=None, batch_size=None):
         """
-        Feedforward upto layer 'upto' in volatile mode. Use for inference. See
-        http://pytorch.org/docs/0.3.1/notes/autograd.html.
-        If 'upto' is not passed, this works as the standard forward function
-        in PyTorch.
+        Feed in X_test and get output at a specified layer.
 
         Parameters
         ----------
+        X_test : Tensor, shape (n_example, dim)
 
-        x : Tensor, shape (batch_size, dim)
-            Batch. Must be a leaf Variable.
-
-        upto (optional) : int
-            Index for the layer upto (and including) which we will evaluate
-            the model. 0-indexed.
-
-        Returns
-        -------
-        y : Tensor, shape (batch_size, out_dim)
-            Batch output.
-        """
-        x.volatile = True
-        return self._forward(x, upto=upto, update_X=update_X)
-
-    def get_repr(self, X_test, layer=None, batch_size=None):
-        """
-        Feed random sample x into the network and get its representation at the
-        output of a given layer. This is useful mainly for two reasons. First,
-        one might just be curious and want to explore the hidden representation
-        of a trained MLKN. Second, to train the last layer as a SVM (or just
-        substitute all layers after this one with a SVM), one could
-        simply take this hidden representation and use it as a new random sample
-        for his/her favorite SVM model.
-
-        Parameters
-        ----------
-        X_test : Tensor, shape (n1_example, dim)
-            Random sample whose representation is of interest.
+        Y_test (optional) : Tensor, shape (n_example, y_dim)
+            For calculating the metric value.
 
         layer (optional) : int
-            Output of this layer is the hidden representation. Layers are
+            Output of this layer is returned. Layers are
             zero-indexed with the 0th layer being the one closest to the input.
             If this parameter is not passed, evaluate the output of the entire
-            network.
+            network and calculate and print the metric value.
 
         Returns
         -------
-        Y_test : Tensor, shape (n1_example, layer_dim)
+        X_eval : Tensor, shape (n_example, layer_dim)
             Hidden representation of X_test at the given layer.
         """
         # TODO: test
@@ -182,8 +161,10 @@ class baseMLKN(torch.nn.Module):
         layer, layer_index = getattr(self, 'layer'+str(layer)), layer
         out_dim = layer.out_dim
 
-        Y_test = torch.cuda.FloatTensor(X_test.shape[0], out_dim) if \
-        X_test.is_cuda else torch.FloatTensor(X_test.shape[0], out_dim)
+        X_eval = Variable(torch.cuda.FloatTensor(X_test.shape[0], out_dim),
+        requires_grad=False) if \
+        X_test.is_cuda else \
+        Variable(torch.FloatTensor(X_test.shape[0], out_dim), requires_grad=False)
 
         i = 0
         for x_test in K.get_batch(X_test, batch_size=batch_size):
@@ -193,39 +174,38 @@ class baseMLKN(torch.nn.Module):
             # NOTE: when only one set is sent to get_batch,
             # we need to use x_test[0] because no automatic unpacking has
             # been done by Python
-            y_test = self._forward_volatile(
+            x_test.volatile = True
+            x_eval = self.forward(
                 x_test,
                 upto=layer_index,
                 update_X=False
                 )
 
             if x_test.shape[0]<batch_size: # last batch
-                Y_test[i*batch_size:] = y_test.data[:]
+                X_eval[i*batch_size:] = x_eval.data[:]
                 break
-            Y_test[i*batch_size: (i+1)*batch_size] = y_test.data[:]
+            X_eval[i*batch_size: (i+1)*batch_size] = x_eval.data[:]
             i += 1
 
-        return Variable(Y_test, requires_grad=False)
+        if layer_index == self._layer_counter-1:
+            # compute and print the metric if the entire model has been evaluated
+            if self._metric_fn.__class__.__name__=='L0Loss':
+                # predict first
+                _, Y_pred = torch.max(X_eval, dim=1)
+                print('{}: {:.3f}'.format(
+                    'L0Loss (%)',
+                    self._metric_fn(y_pred=Y_pred, y=Y_test)*100
+                ))
+            else:
+                # assumes self._metric_fn is a torch loss object
+                print('{}: {:.3f}'.format(
+                    self._metric_fn.__class__.__name__,
+                    self._metric_fn(X_eval, Y_test).data[0]
+                ))
+
+        return X_eval
         # NOTE: this is to make the type of Y_pred consistent with X_test since
         # X_test must be a Variable
-
-    def evaluate(self, X_test, batch_size=None):
-        """
-        Feed X_test into the network and get raw output.
-
-        Parameters
-        ----------
-
-        X_test : Tensor, shape (n1_example, dim)
-            Set to be evaluated.
-
-        Returns
-        -------
-        Y_test : Tensor, shape (n1_example, out_dim)
-            Raw output from the network.
-        """
-        # TODO: test
-        return self.get_repr(X_test, batch_size=batch_size)
 
     def fit(self):
         raise NotImplementedError('must be implemented by subclass')
@@ -256,7 +236,7 @@ class MLKN(baseMLKN):
         X_val=None,
         Y_val=None,
         val_window=30,
-        val_crit=None):
+        ):
         """
         Parameters
         ----------
@@ -276,10 +256,6 @@ class MLKN(baseMLKN):
 
         val_window (optional) : int
             The number of epochs between validations.
-
-        val_crit (optional) : callable
-            The loss function against which the model is evaluated on the
-            validation set. Needs to return a torch Variable.
 
         batch_size (optional) : int
             If not specified, use full mode.
@@ -325,7 +301,7 @@ class MLKN(baseMLKN):
                 update_X = True if _==0 and __==0 else False
 
                 __ += 1
-                output = self._forward(x, update_X=update_X)
+                output = self.forward(x, update_X=update_X)
 
                 loss = self.output_loss_fn(output, y)
                 # NOTE: L2 regulatization
@@ -343,22 +319,17 @@ class MLKN(baseMLKN):
                     loss.backward()
                     self.optimizer.step()
                     self.optimizer.zero_grad()
-                    self._forward(x, update_X=True) # update X after each step
+                    self.forward(x, update_X=True) # update X after each step
 
                 else:
                     loss.backward(retain_graph=True)
             if accumulate_grad:
                 self.optimizer.step()
                 self.optimizer.zero_grad()
-                self._forward(x, update_X=True)
+                self.forward(x, update_X=True)
 
-            if not _+1 % val_window:
-                # TODO: batch evaluate
-                Y_val_ = self.evaluate(X_val)
-                print('validation set loss({}): {:.3f}'.format(
-                    val_crit.__class__.__name__,
-                    val_crit(Y_val_, Y_val).data[0]
-                ))
+            if X_val is not None and (_+1) % val_window==0:
+                self.evaluate(X_test=X_val, Y_test=Y_val)
 
         print('\n' + '#'*10 + '\n')
         for param in self.parameters(): param.requires_grad=False # freeze
@@ -405,7 +376,7 @@ class MLKNGreedy(baseMLKN):
         for param in self.parameters(): param.requires_grad=False # freeze all
         # layers
 
-    def _fit_rep_learners(
+    def _fit_hidden(
         self,
         n_epoch,
         X, Y,
@@ -460,7 +431,7 @@ class MLKNGreedy(baseMLKN):
                     # NOTE: required by CosineSimilarity
 
                     # get output ###############################################
-                    output = self._forward(x, upto=i, update_X=update_X)
+                    output = self.forward(x, upto=i, update_X=update_X)
                     # output.register_hook(print)
                     # print('output', output) # NOTE: layer0 initial feedforward
                     # passed
@@ -568,7 +539,7 @@ class MLKNGreedy(baseMLKN):
                 update_X = True if _==0 and __==0 else False
                 __ += 1
                 # compute loss
-                output = self._forward(x, upto=i, update_X=update_X)
+                output = self.forward(x, upto=i, update_X=update_X)
                 # print(output) # NOTE: layer1 initial feedforward passed
 
                 loss = self.output_loss_fn(output, y)
@@ -605,24 +576,8 @@ class MLKNGreedy(baseMLKN):
                 optimizer.step()
                 optimizer.zero_grad()
 
-            if X_val is not None and _+1 % val_window!=0:
-                # TODO: maybe need some checks here on val_crit
-                # TODO: this is a very messy part
-
-                if val_crit.__name__=='L0Loss':
-                    val_loss_name = val_crit.__name__ + ' (%) '
-                    Y_val_ = self.predict(X_val, batch_size=batch_size)
-                    val_loss = val_crit(Y_val_, Y_val) * 100
-                else:
-                    # assumes val_crit is a torch loss class
-                    val_loss_name = val_crit.__name__
-                    Y_val_ = self.evaluate(X_val, batch_size=batch_size)
-                    val_loss = val_crit()(Y_val_, Y_val).data[0]
-
-                print('\nvalidation set loss({}): {:.3f}\n'.format(
-                    val_loss_name,
-                    val_loss
-                    ))
+            if X_val is not None and (_+1) % val_window==0:
+                self.evaluate(X_test=X_val, Y_test=Y_val)
 
         print('\n' + '#'*10 + '\n')
         for param in layer.parameters(): param.requires_grad=False # freeze
@@ -641,27 +596,6 @@ class MLKNClassifier(MLKNGreedy):
     """
     def __init__(self):
         super(MLKNClassifier, self).__init__()
-
-    def predict(self, X_test, batch_size=None):
-        """
-        Get predictions from the classifier.
-
-        Parameters
-        ----------
-
-        X_test : Tensor, shape (n1_example, dim)
-            Test set.
-
-        Returns
-        -------
-        Y_pred : Tensor, shape (n1_example,)
-            Predicted labels.
-        """
-        if not batch_size or batch_size>X_test.shape[0]: batch_size=X_test.shape[0]
-        Y_raw = self.evaluate(X_test, batch_size=batch_size)
-        _, Y_pred = torch.max(Y_raw, dim=1)
-
-        return Y_pred
 
     def fit(
         self,
@@ -716,7 +650,7 @@ class MLKNClassifier(MLKNGreedy):
         """
         assert len(n_epoch) >= self._layer_counter
         self._compile()
-        self._fit_rep_learners(
+        self._fit_hidden(
             n_epoch,
             X, Y,
             n_class,

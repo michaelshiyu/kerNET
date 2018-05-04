@@ -323,35 +323,40 @@ def to_ensemble(layer, batch_size):
         ensemble_layer.add(component)
     return ensemble_layer
 
-def L0Loss(y_pred, y):
-    """
-    Compute prediction error rate. This is not a differentiable loss function.
+class L0Loss:
+    def __call__(self, y_pred, y):
+        """
+        Compute prediction error rate.
 
-    Parameters
-    ----------
+        Parameters
+        ----------
 
-    y_pred : Tensor, shape (batch_size,)
-        Predicted labels.
+        y_pred : Tensor, shape (batch_size,)
+            Predicted labels.
 
-    y : Tensor, shape (batch_size,)
-        True labels.
+        y : Tensor, shape (batch_size,)
+            True labels.
 
-    Returns
-    -------
-    err : scalar
-        Error rate.
-    """
-    assert y_pred.shape==y.shape
+        Returns
+        -------
+        err : scalar
+            Error rate.
+        """
+        assert y_pred.shape==y.shape
 
-    # y_pred = y_pred.type_as(y)
-    # err = (y_pred!=y).sum().type(torch.FloatTensor).div_(float(y.shape[0])) # BUG
+        # y_pred = y_pred.type_as(y)
+        # err = (y_pred!=y).sum().type(torch.FloatTensor).div_(float(y.shape[0])) # BUG
 
-    if y_pred.is_cuda: y_pred = y_pred.cpu()
-    if y.is_cuda: y = y.cpu()
-    err = float(sum(y_pred.data.numpy()!=y.data.numpy())) / y.shape[0]
-    # BUG: for numpy objects converted from torch.tensor, still can access
-    # x.data but x.data is some memory location
-    return err
+        if y_pred.is_cuda: y_pred = y_pred.cpu()
+        if y.is_cuda: y = y.cpu()
+
+        if isinstance(y, Variable): y = y.data
+        if isinstance(y_pred, Variable): y_pred = y_pred.data
+
+        err = float(sum(y_pred.numpy()!=y.numpy())) / y.shape[0]
+        # BUG: for numpy objects converted from torch.tensor, still can access
+        # x.data but x.data is some memory location
+        return err
 
 def get_subset(X, Y, n, shuffle=True):
     """
