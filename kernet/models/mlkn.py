@@ -196,6 +196,11 @@ class baseMLKN(torch.nn.Module):
                     'L0Loss (%)',
                     self._metric_fn(y_pred=Y_pred, y=Y_test)*100
                 ))
+                # TODO: a better way to record history?
+                print('{}: {:.3f}'.format(
+                    'L0Loss (%)',
+                    self._metric_fn(y_pred=Y_pred, y=Y_test)*100
+                ), file=open('_result.txt','a'))
             else:
                 # assumes self._metric_fn is a torch loss object
                 print('{}: {:.3f}'.format(
