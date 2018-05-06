@@ -24,6 +24,7 @@ from layers.ensemble import kerLinearEnsemble
 # TODO: numerically check feedforward, initial grad calc and grad updates of the
 # bp model; run it on some datasets (classification and regression)
 
+
 torch.manual_seed(1234)
 
 class baseMLKN(torch.nn.Module):
@@ -131,7 +132,7 @@ class baseMLKN(torch.nn.Module):
 
         return y
 
-    def evaluate(self, X_test, Y_test=None, layer=None, batch_size=None):
+    def evaluate(self, X_test, Y_test=None, layer=None, batch_size=None, write_to=None):
         """
         Feed in X_test and get output at a specified layer.
 
@@ -197,10 +198,11 @@ class baseMLKN(torch.nn.Module):
                     self._metric_fn(y_pred=Y_pred, y=Y_test)*100
                 ))
                 # TODO: a better way to record history?
-                print('{}: {:.3f}'.format(
-                    'L0Loss (%)',
-                    self._metric_fn(y_pred=Y_pred, y=Y_test)*100
-                ), file=open('_result.txt','a'))
+                if write_to:
+                    print('{}: {:.3f}'.format(
+                        'L0Loss (%)',
+                        self._metric_fn(y_pred=Y_pred, y=Y_test)*100
+                    ), file=open(write_to,'a'))
             else:
                 # assumes self._metric_fn is a torch loss object
                 print('{}: {:.3f}'.format(
@@ -495,7 +497,7 @@ class MLKNGreedy(baseMLKN):
         X_val=None,
         Y_val=None,
         val_window=30,
-        val_crit=None
+        write_to=None
         ):
         """
         Fit the last layer.
@@ -581,7 +583,7 @@ class MLKNGreedy(baseMLKN):
                 optimizer.zero_grad()
 
             if X_val is not None and (_+1) % val_window==0:
-                self.evaluate(X_test=X_val, Y_test=Y_val)
+                self.evaluate(X_test=X_val, Y_test=Y_val, write_to=write_to)
 
         print('\n' + '#'*10 + '\n')
         for param in layer.parameters(): param.requires_grad=False # freeze
@@ -612,7 +614,8 @@ class MLKNClassifier(MLKNGreedy):
         X_val=None,
         Y_val=None,
         val_window=30,
-        val_crit=None):
+        write_to=None
+        ):
         """
         Parameters
         ----------
@@ -638,9 +641,10 @@ class MLKNClassifier(MLKNGreedy):
         val_window (optional) : int
             The number of epochs between validations.
 
-        val_crit (optional) : callable or torch loss class
-            The loss function against which the model is evaluated on the
-            validation set. Needs to return a torch Variable.
+        write_to (optional) : str
+            File to record hyperparameters and write a history of validation
+            metric to. Default write mode
+            is append, so make sure to create a new file for each run.
 
         batch_size (optional) : int
             If not specified, use full mode.
@@ -652,6 +656,21 @@ class MLKNClassifier(MLKNGreedy):
             If True, accumulate gradient from each batch and only update the
             weights after each epoch.
         """
+        # TODO
+        """
+        if write_to is not None:
+
+            # TODO: write settings to a file, only supports kerLinear and
+            # kerLinearEnsemble objects
+            # TODO: include more info such as loss functions, optimizers, etc.
+            model = {}
+            for i in range(self._layer_counter):
+                layer = getattr(self, 'layer'+str(i))
+                model['layer'+str(i)] = \
+                    ('sigma', layer.sigma, 'out_dim', layer.out_dim)]
+
+            settings = {'n_epoch':n_epoch, 'model':config, 'lr':()
+        """
         assert len(n_epoch) >= self._layer_counter
         self._compile()
         self._fit_hidden(
@@ -662,7 +681,7 @@ class MLKNClassifier(MLKNGreedy):
             shuffle=shuffle,
             accumulate_grad=accumulate_grad
             )
-        print('Representation-learning layers trained.')
+        print('Hidden layers trained.')
 
         self._fit_output(
             n_epoch,
@@ -673,9 +692,9 @@ class MLKNClassifier(MLKNGreedy):
             X_val=X_val,
             Y_val=Y_val,
             val_window=val_window,
-            val_crit=val_crit
+            write_to=write_to
             )
-        print('Classifier trained.')
+        print('Output layer trained.')
 
 if __name__=='__main__':
     pass

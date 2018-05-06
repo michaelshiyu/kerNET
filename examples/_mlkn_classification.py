@@ -18,9 +18,6 @@ from models.mlkn import MLKNClassifier
 from layers.kerlinear import kerLinear
 from layers.ensemble import kerLinearEnsemble
 
-torch.manual_seed(1234)
-np.random.seed(1234)
-
 if __name__=='__main__':
     #########
     # large vision datasets
@@ -36,13 +33,13 @@ if __name__=='__main__':
     ])
 
     root = './torchvision_datasets'
-    train = torchvision.datasets.rectangles(
+    train = torchvision.datasets.convex(
         root=root,
         train=True,
         transform=transform,
         download=True
         )
-    test = torchvision.datasets.rectangles(
+    test = torchvision.datasets.convex(
         root=root,
         train=False,
         transform=transform
@@ -70,72 +67,88 @@ if __name__=='__main__':
     """
     '''
 
-    addr = '/Users/michael/Desktop/Github/data/rectangles/'
-    addr = '/home/michaelshiyu/Github/data/rectangles/' # for miner
-    # addr = '/home/administrator/Github/data/rectangles/' # for lab
-    # addr = '/home/paperspace/Github/data/rectangles/' # for paperspace
-    x_train = Variable(torch.from_numpy(np.load(addr+'rectangles_train_img.npy')).type(dtype), requires_grad=False) # when change datasets, change size of validation set
-    y_train = Variable(torch.from_numpy(np.load(addr+'rectangles_train_label.npy')).type(dtype), requires_grad=False)
-    x_test = Variable(torch.from_numpy(np.load(addr+'rectangles_test_img.npy')).type(dtype), requires_grad=False)
-    y_test = Variable(torch.from_numpy(np.load(addr+'rectangles_test_label.npy')).type(dtype), requires_grad=False)
-    x_val = x_train[1000:]
-    y_val = y_train[1000:]
-    x_train = x_train[:1000]
-    y_train = y_train[:1000]
+    addr = '/Users/michael/Desktop/Github/data/convex/'
+    addr = '/home/michaelshiyu/Github/data/convex/' # for miner
+    # addr = '/home/administrator/Github/data/convex/' # for lab
+    # addr = '/home/paperspace/Github/data/convex/' # for paperspace
+    x_train = Variable(torch.from_numpy(np.load(addr+'convex_train_img.npy')).type(dtype), requires_grad=False) # when change datasets, change size of validation set
+    y_train = Variable(torch.from_numpy(np.load(addr+'convex_train_label.npy')).type(dtype), requires_grad=False)
+    x_test = Variable(torch.from_numpy(np.load(addr+'convex_test_img.npy')).type(dtype), requires_grad=False)
+    y_test = Variable(torch.from_numpy(np.load(addr+'convex_test_label.npy')).type(dtype), requires_grad=False)
+    x_val = x_train[6000:]
+    y_val = y_train[6000:]
+    x_train = x_train[:6000]
+    y_train = y_train[:6000]
     n_class = int(torch.max(y_train) + 1)
 
     ensemble = True
     batch_size=30
 
-
-
+    history = 'convex.txt'
     for epo1 in [10, 20, 30]:
         for epo2 in [10, 20, 30]:
-            for hidden_dim in [5, 10, 15]:
-                for lr1 in [1e-1, 1e-2, 1e-3]:
-                    for lr2 in [1e-1, 1e-2, 1e-3]:
-                        for w_decay1 in [1e-1, 1e-3, 1e-5]:
-                            for w_decay2 in [1e-1, 1e-3, 1e-5]:
-                                for sigma1 in [1, 5, 10]:
-                                    for sigma2 in [.01, .1, 1]:
-                                        print('sigma1', sigma1, 'sigma2', sigma2, 'epo1', epo1, 'epo2', epo2, 'hidden_dim', hidden_dim, 'lr1', lr1, 'lr2', lr2, 'w_decay1', w_decay1, 'w_decay2', w_decay2, file=open('_result.txt','a'))
+            for hidden_dim in [5, 15]:
+                for lr1 in [1e-1, 1e-3]:
+                    for lr2 in [1e-1, 1e-3]:
+                        for w_decay1 in [1e-3, 1e-5]:
+                            for w_decay2 in [1e-3, 1e-5]:
+                                for sigma1 in [5, 10, 20]:
+                                    for sigma2 in [.1, 1]:
+                                        for n_center2 in [6000]:
+                                            for seed in range(0, 1):
 
-                                        mlkn = MLKNClassifier()
-                                        layer0 = kerLinear(X=x_train, out_dim=hidden_dim, sigma=sigma1, bias=True)
-                                        layer1 = kerLinear(X=x_train, out_dim=n_class, sigma=sigma2, bias=True)
+                                                torch.manual_seed(seed)
+                                                np.random.seed(seed)
 
-                                        if not ensemble:
-                                            mlkn.add_layer(layer0)
-                                            mlkn.add_layer(layer1)
+                                                print('sigma1', sigma1, 'sigma2', sigma2, 'epo1', epo1, 'epo2', epo2, 'hidden_dim', hidden_dim, 'lr1', lr1, 'lr2', lr2, 'w_decay1', w_decay1, 'w_decay2', w_decay2, 'n_center2', n_center2, 'seed', seed, file=open(history,'a'))
+                                                # print('sigma1', sigma1, 'sigma2', sigma2, 'epo1', epo1, 'epo2', epo2, 'hidden_dim', hidden_dim, 'lr1', lr1, 'lr2', lr2, 'w_decay1', w_decay1, 'w_decay2', w_decay2, 'seed', seed, file=open(history,'a'))
 
-                                        else:
-                                            mlkn.add_layer(K.to_ensemble(layer0, batch_size))
-                                            mlkn.add_layer(K.to_ensemble(layer1, batch_size))
+                                                mlkn = MLKNClassifier()
 
-                                        mlkn.add_optimizer(
-                                            torch.optim.Adam(params=mlkn.parameters(), lr=lr1, weight_decay=w_decay1)
-                                            )
-                                        mlkn.add_optimizer(
-                                            torch.optim.Adam(params=mlkn.parameters(), lr=lr2, weight_decay=w_decay2)
-                                            )
+                                                x_train_, y_train_ = K.get_subset(
+                                                    X=x_train,
+                                                    Y=y_train,
+                                                    n=n_center2,
+                                                    shuffle=True
+                                                    )
 
-                                        mlkn.add_loss(torch.nn.CrossEntropyLoss())
-                                        mlkn.add_metric(K.L0Loss())
+                                                layer0 = kerLinear(X=x_train, out_dim=hidden_dim, sigma=sigma1, bias=True)
+                                                layer1 = kerLinear(X=x_train_, out_dim=n_class, sigma=sigma2, bias=True)
 
-                                        if torch.cuda.is_available():
-                                            mlkn.cuda()
+                                                if not ensemble:
+                                                    mlkn.add_layer(layer0)
+                                                    mlkn.add_layer(layer1)
 
-                                        mlkn.fit(
-                                            n_epoch=(epo1, epo2),
-                                            batch_size=300,
-                                            shuffle=True,
-                                            X=x_train,
-                                            Y=y_train,
-                                            n_class=n_class,
-                                            accumulate_grad=False,
-                                            X_val=x_val,
-                                            Y_val=y_val,
-                                            val_window=5,
-                                            )
+                                                else:
+                                                    mlkn.add_layer(K.to_ensemble(layer0, batch_size))
+                                                    mlkn.add_layer(K.to_ensemble(layer1, batch_size))
 
-                                        # mlkn.evaluate(X_test=x_test, Y_test=y_test, batch_size=15)
+                                                mlkn.add_optimizer(
+                                                    torch.optim.Adam(params=mlkn.parameters(), lr=lr1, weight_decay=w_decay1)
+                                                    )
+                                                mlkn.add_optimizer(
+                                                    torch.optim.Adam(params=mlkn.parameters(), lr=lr2, weight_decay=w_decay2)
+                                                    )
+
+                                                mlkn.add_loss(torch.nn.CrossEntropyLoss())
+                                                mlkn.add_metric(K.L0Loss())
+
+                                                if torch.cuda.is_available():
+                                                    mlkn.cuda()
+
+
+                                                mlkn.fit(
+                                                    n_epoch=(epo1, epo2),
+                                                    batch_size=1000,
+                                                    shuffle=True,
+                                                    X=x_train,
+                                                    Y=y_train,
+                                                    n_class=n_class,
+                                                    accumulate_grad=False,
+                                                    X_val=x_val,
+                                                    Y_val=y_val,
+                                                    val_window=5,
+                                                    write_to=history
+                                                    )
+
+                                                # mlkn.evaluate(X_test=x_test, Y_test=y_test, batch_size=300, write_to=history)
