@@ -314,11 +314,14 @@ def to_ensemble(layer, batch_size):
             sigma=layer.sigma,
             bias=use_bias
             )
-
         component.weight.data = \
-            layer.weight[:,i*batch_size:(i+1)*batch_size].data
+            layer.weight[:,i*batch_size:(i+1)*batch_size].data.clone()
         if use_bias:
-            component.bias.data = layer.bias.data
+            component.bias.data = layer.bias.data.clone()
+
+        # shallow copy only (create new memory instead of an alias to the
+        # original data), this is to prevent the returned ensemble instance share
+        # underlying weights with the given layer instance
 
         ensemble_layer.add(component)
     return ensemble_layer

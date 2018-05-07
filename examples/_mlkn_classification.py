@@ -85,17 +85,17 @@ if __name__=='__main__':
     batch_size=30
 
     history = 'convex.txt'
-    for epo1 in [10, 20, 30]:
-        for epo2 in [10, 20, 30]:
-            for hidden_dim in [5, 15]:
-                for lr1 in [1e-1, 1e-3]:
-                    for lr2 in [1e-1, 1e-3]:
-                        for w_decay1 in [1e-3, 1e-5]:
-                            for w_decay2 in [1e-3, 1e-5]:
-                                for sigma1 in [5, 10, 20]:
-                                    for sigma2 in [.1, 1]:
+    for epo1 in [100]:
+        for epo2 in [15, 20, 30]:
+            for hidden_dim in [15]:
+                for lr1 in [1e-3]:
+                    for lr2 in [1e-3]:
+                        for w_decay1 in [1e-4]:
+                            for w_decay2 in [1e-4]:
+                                for sigma1 in [5]:
+                                    for sigma2 in [.13]:
                                         for n_center2 in [6000]:
-                                            for seed in range(0, 1):
+                                            for seed in range(5, 6):
 
                                                 torch.manual_seed(seed)
                                                 np.random.seed(seed)

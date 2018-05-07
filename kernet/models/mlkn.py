@@ -14,12 +14,10 @@ from layers.kerlinear import kerLinear
 from layers.ensemble import kerLinearEnsemble
 # BUG: import is buggy if this script is run from kernet/kernet/models/
 
-# TODO: using multiple devices, see
-# http://pytorch.org/docs/0.3.1/notes/multiprocessing.html and nn.DataParallel
+# TODO: multi-GPU support
 # TODO: numerically check initial grad calculation for the toy example
 # TODO: check numerically grad updates for two update modes (update-per-batch
 # and accumulate_grad)
-# TODO: tests
 # TODO: python2 compatibility
 # TODO: numerically check feedforward, initial grad calc and grad updates of the
 # bp model; run it on some datasets (classification and regression)
@@ -188,8 +186,9 @@ class baseMLKN(torch.nn.Module):
             X_eval[i*batch_size: (i+1)*batch_size] = x_eval.data[:]
             i += 1
 
-        if layer_index == self._layer_counter-1:
+        if layer_index == self._layer_counter-1 and Y_test is not None:
             # compute and print the metric if the entire model has been evaluated
+            # only evaluate when Y_test is provided
             if self._metric_fn.__class__.__name__=='L0Loss':
                 # predict first
                 _, Y_pred = torch.max(X_eval, dim=1)

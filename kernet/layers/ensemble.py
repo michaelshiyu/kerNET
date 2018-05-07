@@ -21,12 +21,12 @@ class _ensemble(torch.nn.Module):
         raise NotImplementedError('Must be implemented by subclass.')
 
 class kerLinearEnsemble(_ensemble):
-    # NOTE: only one of the components need a bias
-    # TODO: another issue is that initializing each component separately results
-    # in different initial weights compared to normal kerLinear
+
     def __init__(self):
         super(kerLinearEnsemble, self).__init__()
         self.X = self._X() # generator for X's
+        self.weight = None
+        self.bias = None
 
     def _X(self):
         """
@@ -43,6 +43,7 @@ class kerLinearEnsemble(_ensemble):
         self._comp_counter += 1
         self.sigma = component.sigma # TODO: allow components to have different
         # sigma?
+        # self.weight = 
 
     def forward(self, x): # TODO: under shuffle mode, fit gives different
     # results if substitute normal layers with ensemble layers, checked that
@@ -59,39 +60,11 @@ class kerLinearEnsemble(_ensemble):
         if x.is_cuda: y=y.cuda()
 
         for i in range(self._comp_counter):
-            # print(i)
             component = getattr(self, 'comp'+str(i))
-            # print(component.forward(x))
             y = y.add(component.forward(x))
         self.out_dim = out_dim
-        # print(y)
         return y
 
-
-"""
-def baseMLKN.to_ensemble(self, layer, X_batch_size):
-    assert isinstance(layer, kerLinear)
-    ensemble = _kerLinearEnsemble()
-    n_batch = layer.ker_dim // X_batch_size
-    last_batch = layer.ker_dim % X_batch_size
-
-    for i in range(n_batch):
-        ensemble.add(kerLinear(
-            ker_dim=batch_size,
-            out_dim=layer.out_dim,
-            sigma=layer.sigma,
-            bias=layer.bias
-            ))
-        ensemble._comp_counter += 1
-    if last_batch:
-        ensemble.add(kerLinear(
-            ker_dim=last_batch,
-            out_dim=layer.out_dim,
-            sigma=layer.sigma,
-            bias=layer.bias
-            ))
-        ensemble._comp_counter += 1
-"""
 if __name__=='__main__':
     dtype = torch.FloatTensor
     if torch.cuda.is_available():
