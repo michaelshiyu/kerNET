@@ -25,8 +25,8 @@ class kerLinearEnsemble(_ensemble):
     def __init__(self):
         super(kerLinearEnsemble, self).__init__()
         self.X = self._X() # generator for X's
-        self.weight = None
-        self.bias = None
+        self.weight = self._weight()
+        self.bias = self._bias()
 
     def _X(self):
         """
@@ -37,15 +37,33 @@ class kerLinearEnsemble(_ensemble):
             comp = getattr(self, 'comp'+str(i))
             yield comp.X
 
+    def _weight(self):
+        """
+        Generate weights of each component in the order in which the components
+        were added.
+        """
+        for i in range(self._comp_counter):
+            comp = getattr(self, 'comp'+str(i))
+            yield comp.weight
+
+    def _bias(self):
+        """
+        Generate bias of each component in the order in which the components
+        were added.
+        """
+        for i in range(self._comp_counter):
+            comp = getattr(self, 'comp'+str(i))
+            yield comp.bias
+
     def add(self, component):
         assert isinstance(component, kerLinear)
         setattr(self, 'comp'+str(self._comp_counter), component)
         self._comp_counter += 1
         self.sigma = component.sigma # TODO: allow components to have different
         # sigma?
-        # self.weight = 
 
-    def forward(self, x): # TODO: under shuffle mode, fit gives different
+    def forward(self, x):
+    # TODO: under shuffle mode, fit gives different
     # results if substitute normal layers with ensemble layers, checked that
     # the randperm vectors in K.rand_shuffle are different in two modes, why?
         out_dims = [(

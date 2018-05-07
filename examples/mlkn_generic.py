@@ -33,7 +33,7 @@ if __name__=='__main__':
     x, y = load_boston(return_X_y=True) # 0.0263 (acc grad); 0.0275
 
     task = 'regression' # 'regression' or 'classification'
-    ensemble = False
+    ensemble = True
     batch_size=30 # for ensemble layers
 
 
@@ -118,7 +118,7 @@ if __name__=='__main__':
         shuffle=True,
         X=x_train,
         Y=y_train,
-        accumulate_grad=True,
+        accumulate_grad=False,
         X_val=x_train,
         Y_val=y_train,
         val_window=5

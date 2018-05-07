@@ -126,9 +126,11 @@ mlkn_ensemble.fit(
     n_class=2
     )
 
-print(list(mlkn_ensemble.layer0.parameters()))
-print(list(mlkn_ensemble.layer1.parameters()))
+print(list(mlkn_ensemble.layer0.weight))
+print(list(mlkn_ensemble.layer0.bias))
 
+print(list(mlkn_ensemble.layer1.weight))
+print(list(mlkn_ensemble.layer1.bias))
 #########
 # mlkn_ensemble forward and evaluate
 X_eval = mlkn_ensemble(X)
