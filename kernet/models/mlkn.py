@@ -15,12 +15,7 @@ from layers.ensemble import kerLinearEnsemble
 # BUG: import is buggy if this script is run from kernet/kernet/models/
 
 # TODO: multi-GPU support
-# TODO: numerically check initial grad calculation for the toy example
-# TODO: check numerically grad updates for two update modes (update-per-batch
-# and accumulate_grad)
 # TODO: python2 compatibility
-# TODO: numerically check feedforward, initial grad calc and grad updates of the
-# bp model; run it on some datasets (classification and regression)
 
 
 torch.manual_seed(1234)
@@ -29,16 +24,7 @@ class baseMLKN(torch.nn.Module):
     """
     Model for fast implementations of MLKN. Do not use this base class, use
     subclasses instead.
-
-    A special property of MLKN is that for it to do anything, it always needs
-    a reference to its training set, which we call X. You could think of this
-    as a set of bases to expand your kernel machine on. And this is why in a lot
-    of methods of this class you see the parameter X. It is true that it
-    can be highly memory-inefficient to carry this big chunk of data around,
-    we may add more functionalities to the class in the future to tackle with
-    this issue.
     """
-    # TODO: see above documentation
     def __init__(self):
         super(baseMLKN, self).__init__()
         self._layer_counter = 0
@@ -378,8 +364,9 @@ class MLKNGreedy(baseMLKN):
             optimizer = getattr(self, 'optimizer'+str(i))
             optimizer.param_groups[0]['params'] = list(layer.parameters())
 
-        for param in self.parameters(): param.requires_grad=False # freeze all
-        # layers
+        for param in self.parameters(): param.requires_grad=False # Freeze all
+        # layers. Only unfreeze a layer when optimizing it, then the amount of
+        # calculation for gradients is minimized for each step.
 
     def _fit_hidden(
         self,
@@ -388,7 +375,8 @@ class MLKNGreedy(baseMLKN):
         n_group,
         batch_size=None,
         shuffle=False,
-        accumulate_grad=True):
+        accumulate_grad=True,
+        keep_grad=False):
         """
         Fit the representation learning layers, i.e., all layers but the last.
         """
@@ -470,17 +458,13 @@ class MLKNGreedy(baseMLKN):
                     # train the layer
                     if not accumulate_grad:
                         optimizer.step()
-                        optimizer.zero_grad()
-
-                    #########
-                    # check gradient
-                    # print('weight', layer.weight)
-                    # print('gradient', layer.weight.grad.data)
-                    #########
+                        if not keep_grad:
+                            optimizer.zero_grad()
 
                 if accumulate_grad:
                     optimizer.step()
-                    optimizer.zero_grad()
+                    if not keep_grad:
+                        optimizer.zero_grad()
 
             print('\n' + '#'*10 + '\n')
             for param in layer.parameters(): param.requires_grad=False # freeze
@@ -496,7 +480,8 @@ class MLKNGreedy(baseMLKN):
         X_val=None,
         Y_val=None,
         val_window=30,
-        write_to=None
+        write_to=None,
+        keep_grad=False
         ):
         """
         Fit the last layer.
@@ -564,22 +549,19 @@ class MLKNGreedy(baseMLKN):
                 # train the layer
                 if not accumulate_grad:
                     optimizer.step()
-                    optimizer.zero_grad()
+                    if not keep_grad:
+                        optimizer.zero_grad()
 
                 #########
                 # define crossentropy loss to test gradient
                 # loss = output_prob.mul(K.one_hot(y.unsqueeze(dim=1), n_class)).sum()/2
                 # NOTE: this calculation results in the same gradient as that
                 # calculated by autograd using CrossEntropyLoss as loss_fn
-
-                # check gradient
-                # print('weight', layer.weight)
-                # print('gradient', layer.weight.grad.data)
-                # print('bias gradient', layer.bias.grad.data)
                 #########
             if accumulate_grad:
                 optimizer.step()
-                optimizer.zero_grad()
+                if not keep_grad:
+                    optimizer.zero_grad()
 
             if X_val is not None and (_+1) % val_window==0:
                 self.evaluate(X_test=X_val, Y_test=Y_val, write_to=write_to)
@@ -613,7 +595,8 @@ class MLKNClassifier(MLKNGreedy):
         X_val=None,
         Y_val=None,
         val_window=30,
-        write_to=None
+        write_to=None,
+        keep_grad=False
         ):
         """
         Parameters
@@ -654,6 +637,10 @@ class MLKNClassifier(MLKNGreedy):
         accumulate_grad (optional) : bool
             If True, accumulate gradient from each batch and only update the
             weights after each epoch.
+
+        keep_grad (optional) : bool
+            If True, will not zero grad after each grad update (which will lead
+            to wrong results!). Set to True for internal testing only.
         """
         # TODO
         """
@@ -678,7 +665,8 @@ class MLKNClassifier(MLKNGreedy):
             n_class,
             batch_size=batch_size,
             shuffle=shuffle,
-            accumulate_grad=accumulate_grad
+            accumulate_grad=accumulate_grad,
+            keep_grad=keep_grad
             )
         print('Hidden layers trained.')
 
@@ -691,7 +679,8 @@ class MLKNClassifier(MLKNGreedy):
             X_val=X_val,
             Y_val=Y_val,
             val_window=val_window,
-            write_to=write_to
+            write_to=write_to,
+            keep_grad=keep_grad
             )
         print('Output layer trained.')
 
