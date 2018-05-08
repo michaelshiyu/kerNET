@@ -73,11 +73,11 @@ mlkn_ensemble.add_layer(K.to_ensemble(mlkn.layer1, batch_size=1))
 # mlkn forward and evaluate
 X_eval = mlkn(X, update_X=True)
 X_eval_ = mlkn.evaluate(X)
-# print(X_eval, X_eval_)
+print(X_eval, X_eval_)
 
 X_eval_hidden = mlkn(X, update_X=True, upto=0)
 X_eval_hidden_ = mlkn.evaluate(X, layer=0)
-# print(X_eval_hidden, X_eval_hidden_)
+print(X_eval_hidden, X_eval_hidden_)
 
 #########
 # mlkn_ensemble forward and evaluate
@@ -144,11 +144,11 @@ for b in mlkn_ensemble.layer1.bias:
 # (use it to test
 # that params on mlkn_ensemble has been properly updated))
 
-mlkn.optimizer0 = torch.optim.SGD(mlkn.parameters(), lr=0.5)
-mlkn.optimizer1 = torch.optim.SGD(mlkn.parameters(), lr=0.5)
+mlkn.optimizer0 = torch.optim.SGD(mlkn.parameters(), lr=1)
+mlkn.optimizer1 = torch.optim.SGD(mlkn.parameters(), lr=1)
 
-mlkn_ensemble.optimizer0 = torch.optim.SGD(mlkn_ensemble.parameters(), lr=0.5)
-mlkn_ensemble.optimizer1 = torch.optim.SGD(mlkn_ensemble.parameters(), lr=0.5)
+mlkn_ensemble.optimizer0 = torch.optim.SGD(mlkn_ensemble.parameters(), lr=1)
+mlkn_ensemble.optimizer1 = torch.optim.SGD(mlkn_ensemble.parameters(), lr=1)
 
 mlkn.fit(
     n_epoch=(10, 10),
@@ -168,16 +168,16 @@ mlkn_ensemble.fit(
 
 X_eval = mlkn(X)
 X_eval_ = mlkn.evaluate(X)
-print(X_eval, X_eval_)
+# print(X_eval, X_eval_)
 
 X_eval_hidden = mlkn(X, upto=0)
 X_eval_hidden_ = mlkn.evaluate(X, layer=0)
-print(X_eval_hidden, X_eval_hidden_)
+# print(X_eval_hidden, X_eval_hidden_)
 
 X_eval = mlkn_ensemble(X)
 X_eval_ = mlkn_ensemble.evaluate(X)
-print(X_eval, X_eval_)
+# print(X_eval, X_eval_)
 
 X_eval_hidden = mlkn_ensemble(X, upto=0)
 X_eval_hidden_ = mlkn_ensemble.evaluate(X, layer=0)
-print(X_eval_hidden, X_eval_hidden_)
+# print(X_eval_hidden, X_eval_hidden_)

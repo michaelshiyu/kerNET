@@ -299,12 +299,12 @@ class MLKN(baseMLKN):
                 # is taken care of by setting the weight_decay param in the
                 # optimizer, see
                 # https://discuss.pytorch.org/t/simple-l2-regularization/139
-
-                print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
-                    _+1, n_epoch, __, n_batch+int(last_batch),
-                    self.output_loss_fn.__class__.__name__,
-                    loss.data[0]
-                    ))
+                if verbose:
+                    print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
+                        _+1, n_epoch, __, n_batch+int(last_batch),
+                        self.output_loss_fn.__class__.__name__,
+                        loss.data[0]
+                        ))
 
                 if not accumulate_grad:
                     loss.backward()
@@ -322,7 +322,7 @@ class MLKN(baseMLKN):
             if X_val is not None and (_+1) % val_window==0:
                 self.evaluate(X_test=X_val, Y_test=Y_val)
 
-        print('\n' + '#'*10 + '\n')
+        if verbose: print('\n' + '#'*10 + '\n')
         for param in self.parameters(): param.requires_grad=False # freeze
         # the model
 
@@ -376,7 +376,9 @@ class MLKNGreedy(baseMLKN):
         batch_size=None,
         shuffle=False,
         accumulate_grad=True,
-        keep_grad=False):
+        keep_grad=False,
+        verbose=True
+        ):
         """
         Fit the representation learning layers, i.e., all layers but the last.
         """
@@ -447,12 +449,12 @@ class MLKNGreedy(baseMLKN):
                     # is taken care of by setting the weight_decay param in the
                     # optimizer, see
                     # https://discuss.pytorch.org/t/simple-l2-regularization/139
-
-                    print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
-                        _+1, n_epoch[i], __, n_batch+int(last_batch),
-                        'Alignment',
-                        -loss.data[0]
-                        ))
+                    if verbose:
+                        print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
+                            _+1, n_epoch[i], __, n_batch+int(last_batch),
+                            'Alignment',
+                            -loss.data[0]
+                            ))
 
                     loss.backward()
                     # train the layer
@@ -466,7 +468,7 @@ class MLKNGreedy(baseMLKN):
                     if not keep_grad:
                         optimizer.zero_grad()
 
-            print('\n' + '#'*10 + '\n')
+            if verbose: print('\n' + '#'*10 + '\n')
             for param in layer.parameters(): param.requires_grad=False # freeze
             # this layer again
 
@@ -481,7 +483,8 @@ class MLKNGreedy(baseMLKN):
         Y_val=None,
         val_window=30,
         write_to=None,
-        keep_grad=False
+        keep_grad=False,
+        verbose=True
         ):
         """
         Fit the last layer.
@@ -538,12 +541,12 @@ class MLKNGreedy(baseMLKN):
                 # is taken care of by setting the weight_decay param in the
                 # optimizer, see
                 # https://discuss.pytorch.org/t/simple-l2-regularization/139
-
-                print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
-                    _+1, n_epoch[i], __, n_batch+int(last_batch),
-                    self.output_loss_fn.__class__.__name__,
-                    loss.data[0]
-                    ))
+                if verbose:
+                    print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
+                        _+1, n_epoch[i], __, n_batch+int(last_batch),
+                        self.output_loss_fn.__class__.__name__,
+                        loss.data[0]
+                        ))
 
                 loss.backward()
                 # train the layer
@@ -566,7 +569,7 @@ class MLKNGreedy(baseMLKN):
             if X_val is not None and (_+1) % val_window==0:
                 self.evaluate(X_test=X_val, Y_test=Y_val, write_to=write_to)
 
-        print('\n' + '#'*10 + '\n')
+        if verbose: print('\n' + '#'*10 + '\n')
         for param in layer.parameters(): param.requires_grad=False # freeze
         # this layer again
 
@@ -596,7 +599,8 @@ class MLKNClassifier(MLKNGreedy):
         Y_val=None,
         val_window=30,
         write_to=None,
-        keep_grad=False
+        keep_grad=False,
+        verbose=True
         ):
         """
         Parameters
@@ -666,9 +670,10 @@ class MLKNClassifier(MLKNGreedy):
             batch_size=batch_size,
             shuffle=shuffle,
             accumulate_grad=accumulate_grad,
-            keep_grad=keep_grad
+            keep_grad=keep_grad,
+            verbose=verbose
             )
-        print('Hidden layers trained.')
+        if verbose: print('Hidden layers trained.')
 
         self._fit_output(
             n_epoch,
@@ -680,9 +685,10 @@ class MLKNClassifier(MLKNGreedy):
             Y_val=Y_val,
             val_window=val_window,
             write_to=write_to,
-            keep_grad=keep_grad
+            keep_grad=keep_grad,
+            verbose=verbose
             )
-        print('Output layer trained.')
+        if verbose: print('Output layer trained.')
 
 if __name__=='__main__':
     pass

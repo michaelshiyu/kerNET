@@ -61,26 +61,23 @@ class kerLinearEnsemble(_ensemble):
         self._comp_counter += 1
         self.sigma = component.sigma # TODO: allow components to have different
         # sigma?
+        if self._comp_counter==1:
+            self.out_dim = component.out_dim
+        elif self._comp_counter>1:
+            assert self.out_dim == component.out_dim
+            # out_dim of all components should be equal
 
     def forward(self, x):
     # TODO: under shuffle mode, fit gives different
     # results if substitute normal layers with ensemble layers, checked that
     # the randperm vectors in K.rand_shuffle are different in two modes, why?
-        out_dims = [(
-            getattr(self, 'comp'+str(i)).out_dim
-            ) for i in range(self._comp_counter)]
-        # out_dims of all comps should be equal
-        assert out_dims.count(out_dims[0])==len(out_dims)
 
-        out_dim = out_dims[0]
-
-        y = Variable(torch.FloatTensor(x.shape[0], out_dim).zero_())
+        y = Variable(torch.FloatTensor(x.shape[0], self.out_dim).zero_())
         if x.is_cuda: y=y.cuda()
 
         for i in range(self._comp_counter):
             component = getattr(self, 'comp'+str(i))
             y = y.add(component.forward(x))
-        self.out_dim = out_dim
         return y
 
 if __name__=='__main__':
