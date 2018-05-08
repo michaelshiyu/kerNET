@@ -83,7 +83,7 @@ class BaseMLKNTestCase(unittest.TestCase):
 
 
     def test_forward_and_evaluate(self):
-
+        # test forward
         X_eval = self.mlkn(self.X, update_X=True)
         X_eval_hidden = self.mlkn(self.X, update_X=True, upto=0)
         self.assertTrue(np.allclose(
@@ -94,20 +94,20 @@ class BaseMLKNTestCase(unittest.TestCase):
             X_eval_hidden.data.numpy(),
             np.array([[0.22823608, 0.9488263], [0.26411805, 1.0205902]])
             ))
-
-        X_eval = self.mlkn.evaluate(self.X)
-        X_eval_hidden = self.mlkn.evaluate(self.X, layer=0)
-        self.assertTrue(np.allclose(
+        # test forward equals evaluate
+        X_eval_ = self.mlkn.evaluate(self.X)
+        X_eval_hidden_ = self.mlkn.evaluate(self.X, layer=0)
+        self.assertTrue(np.array_equal(
             X_eval.data.numpy(),
-            np.array([[1.5997587, 2.0986326], [1.5990349, 2.0998392]])
+            X_eval_.data.numpy()
             ))
-        self.assertTrue(np.allclose(
+        self.assertTrue(np.array_equal(
             X_eval_hidden.data.numpy(),
-            np.array([[0.22823608, 0.9488263], [0.26411805, 1.0205902]])
+            X_eval_hidden_.data.numpy()
             ))
 
     def test_ensemble_forward_and_evaluate(self):
-
+        # test forward for ensemble
         X_eval = self.mlkn_ensemble(self.X, update_X=True)
         X_eval_hidden = self.mlkn_ensemble(self.X, update_X=True, upto=0)
         self.assertTrue(np.allclose(
@@ -118,16 +118,16 @@ class BaseMLKNTestCase(unittest.TestCase):
             X_eval_hidden.data.numpy(),
             np.array([[0.22823608, 0.9488263], [0.26411805, 1.0205902]])
             ))
-
-        X_eval = self.mlkn_ensemble.evaluate(self.X)
-        X_eval_hidden = self.mlkn_ensemble.evaluate(self.X, layer=0)
-        self.assertTrue(np.allclose(
+        # test forward equals evaluate for ensemble
+        X_eval_ = self.mlkn_ensemble.evaluate(self.X)
+        X_eval_hidden_ = self.mlkn_ensemble.evaluate(self.X, layer=0)
+        self.assertTrue(np.array_equal(
             X_eval.data.numpy(),
-            np.array([[1.5997587, 2.0986326], [1.5990349, 2.0998392]])
+            X_eval_.data.numpy()
             ))
-        self.assertTrue(np.allclose(
+        self.assertTrue(np.array_equal(
             X_eval_hidden.data.numpy(),
-            np.array([[0.22823608, 0.9488263], [0.26411805, 1.0205902]])
+            X_eval_hidden_.data.numpy()
             ))
 
     def test_grad(self):
@@ -143,10 +143,22 @@ class BaseMLKNTestCase(unittest.TestCase):
             verbose=False
             )
 
-        # print(self.mlkn.layer0.weight.grad.data)
-        # print(self.mlkn.layer0.bias.grad.data)
-        # print(self.mlkn.layer1.weight.grad.data)
-        # print(self.mlkn.layer1.bias.grad.data)
+        self.assertTrue(np.allclose(
+            self.mlkn.layer0.weight.grad.data.numpy(),
+            np.array([[0.00113756, -0.00113756], [0.00227511, -0.00227511]])
+            ))
+        self.assertTrue(np.allclose(
+            self.mlkn.layer0.bias.grad.data.numpy(),
+            np.array([0., 0.])
+            ))
+        self.assertTrue(np.allclose(
+            self.mlkn.layer1.weight.grad.data.numpy(),
+            np.array([[-0.12257326, -0.12217124], [0.12257326, 0.12217124]])
+            ))
+        self.assertTrue(np.allclose(
+            self.mlkn.layer1.bias.grad.data.numpy(),
+            np.array([-0.12242149, 0.12242149])
+            ))
 
     def test_ensemble_grad(self):
         self.mlkn_ensemble.add_optimizer(torch.optim.SGD(self.mlkn_ensemble.parameters(), lr=0))
@@ -160,19 +172,39 @@ class BaseMLKNTestCase(unittest.TestCase):
             keep_grad=True,
             verbose=False
             )
-        """
+            
+        w0_grad, b0_grad, w1_grad, b1_grad = [], [], [], []
         for w in self.mlkn_ensemble.layer0.weight:
-            print(w.grad.data)
+            w0_grad.append(w.grad.data.numpy())
         for b in self.mlkn_ensemble.layer0.bias:
             if b is not None:
-                print(b.grad.data)
+                b0_grad.append(b.grad.data.numpy())
         for w in self.mlkn_ensemble.layer1.weight:
-            print(w.grad.data)
+            w1_grad.append(w.grad.data.numpy())
         for b in self.mlkn_ensemble.layer1.bias:
             if b is not None:
-                print(b.grad.data)
-        """
-    def test_ensemble_equal_to_ordinary_in_training(self):
+                b1_grad.append(b.grad.data.numpy())
+
+        self.assertTrue(np.allclose(
+            w0_grad,
+            [np.array([[0.00113756], [0.00227511]]),
+            np.array([[-0.00113756], [-0.00227511]])]
+            ))
+        self.assertTrue(np.allclose(
+            w1_grad,
+            [np.array([[-0.12257326], [0.12257326]]),
+            np.array([[-0.12217125], [0.12217125]])]
+            ))
+        self.assertTrue(np.allclose(
+            b0_grad,
+            [np.array([0., 0.])]
+            ))
+        self.assertTrue(np.allclose(
+            b1_grad,
+            [np.array([-0.1224215,  0.1224215])]
+            ))
+
+    def test_forward_and_evaluate_after_training(self):
         self.mlkn.add_optimizer(torch.optim.SGD(self.mlkn.parameters(), lr=1))
         self.mlkn.add_optimizer(torch.optim.SGD(self.mlkn.parameters(), lr=1))
 
@@ -197,26 +229,45 @@ class BaseMLKNTestCase(unittest.TestCase):
             verbose=False
             )
 
-        X_eval = self.mlkn(self.X)
+        # test forward equals evaluate
+        X_eval = self.mlkn(self.X, update_X=True)
         X_eval_ = self.mlkn.evaluate(self.X)
-        # print(X_eval, X_eval_)
+        self.assertTrue(np.array_equal(
+            X_eval.data.numpy(),
+            X_eval_.data.numpy()
+            ))
 
-        X_eval_hidden = self.mlkn(self.X, upto=0)
+        X_eval_hidden = self.mlkn(self.X, upto=0, update_X=True)
         X_eval_hidden_ = self.mlkn.evaluate(self.X, layer=0)
-        # print(X_eval_hidden, X_eval_hidden_)
+        self.assertTrue(np.array_equal(
+            X_eval_hidden.data.numpy(),
+            X_eval_hidden_.data.numpy()
+            ))
 
-        X_eval = self.mlkn_ensemble(self.X)
-        X_eval_ = self.mlkn_ensemble.evaluate(self.X)
-        # print(X_eval, X_eval_)
+        # test forward equals evaluate for ensemble
+        X_eval_ensemble = self.mlkn_ensemble(self.X, update_X=True)
+        X_eval_ensemble_ = self.mlkn_ensemble.evaluate(self.X)
+        self.assertTrue(np.array_equal(
+            X_eval_ensemble.data.numpy(),
+            X_eval_ensemble_.data.numpy()
+            ))
 
-        X_eval_hidden = self.mlkn_ensemble(self.X, upto=0)
-        X_eval_hidden_ = self.mlkn_ensemble.evaluate(self.X, layer=0)
-        # print(X_eval_hidden, X_eval_hidden_)
+        X_eval_hidden_ensemble = self.mlkn_ensemble(self.X, upto=0, update_X=True)
+        X_eval_hidden_ensemble_ = self.mlkn_ensemble.evaluate(self.X, layer=0)
+        self.assertTrue(np.array_equal(
+            X_eval_hidden_ensemble.data.numpy(),
+            X_eval_hidden_ensemble_.data.numpy()
+            ))
 
-
-
-
-
+        # test ensemble equals ordinary
+        self.assertTrue(np.allclose(
+            X_eval.data.numpy(),
+            X_eval_ensemble.data.numpy()
+            ))
+        self.assertTrue(np.allclose(
+            X_eval_hidden.data.numpy(),
+            X_eval_hidden_ensemble.data.numpy()
+            ))
 
 if __name__=='__main__':
     unittest.main()

@@ -73,22 +73,22 @@ mlkn_ensemble.add_layer(K.to_ensemble(mlkn.layer1, batch_size=1))
 # mlkn forward and evaluate
 X_eval = mlkn(X, update_X=True)
 X_eval_ = mlkn.evaluate(X)
-print(X_eval, X_eval_)
+# print(X_eval, X_eval_)
 
 X_eval_hidden = mlkn(X, update_X=True, upto=0)
 X_eval_hidden_ = mlkn.evaluate(X, layer=0)
-print(X_eval_hidden, X_eval_hidden_)
+# print(X_eval_hidden, X_eval_hidden_)
 
 #########
 # mlkn_ensemble forward and evaluate
 
 X_eval = mlkn_ensemble(X, update_X=True)
 X_eval_ = mlkn_ensemble.evaluate(X)
-print(X_eval, X_eval_)
+# print(X_eval, X_eval_)
 
 X_eval_hidden = mlkn_ensemble(X, update_X=True, upto=0)
 X_eval_hidden_ = mlkn_ensemble.evaluate(X, layer=0)
-print(X_eval_hidden, X_eval_hidden_)
+# print(X_eval_hidden, X_eval_hidden_)
 
 #########
 # mlkn weight update test
@@ -97,7 +97,7 @@ mlkn.add_optimizer(torch.optim.SGD(mlkn.parameters(), lr=0))
 mlkn.add_optimizer(torch.optim.SGD(mlkn.parameters(), lr=0))
 
 mlkn.add_loss(torch.nn.CrossEntropyLoss())
-"""
+
 mlkn.fit(
     n_epoch=(1, 1),
     X=X,
@@ -106,11 +106,11 @@ mlkn.fit(
     keep_grad=True
     )
 
-print(mlkn.layer0.weight.grad.data)
-print(mlkn.layer0.bias.grad.data)
-print(mlkn.layer1.weight.grad.data)
-print(mlkn.layer1.bias.grad.data)
-"""
+print(mlkn.layer0.weight.grad.data.numpy())
+print(mlkn.layer0.bias.grad.data.numpy())
+print(mlkn.layer1.weight.grad.data.numpy())
+print(mlkn.layer1.bias.grad.data.numpy())
+
 
 #########
 # mlkn_ensemble weight update test
@@ -119,7 +119,7 @@ mlkn_ensemble.add_optimizer(torch.optim.SGD(mlkn_ensemble.parameters(), lr=0))
 mlkn_ensemble.add_optimizer(torch.optim.SGD(mlkn_ensemble.parameters(), lr=0))
 
 mlkn_ensemble.add_loss(torch.nn.CrossEntropyLoss())
-"""
+
 mlkn_ensemble.fit(
     n_epoch=(1, 1),
     X=X,
@@ -128,23 +128,30 @@ mlkn_ensemble.fit(
     keep_grad=True
     )
 
+w0_grad, b0_grad, w1_grad, b1_grad = [], [], [], []
 for w in mlkn_ensemble.layer0.weight:
-    print(w.grad.data)
+    w0_grad.append(w.grad.data.numpy())
 for b in mlkn_ensemble.layer0.bias:
     if b is not None:
-        print(b.grad.data)
+        b0_grad.append(b.grad.data.numpy())
 for w in mlkn_ensemble.layer1.weight:
-    print(w.grad.data)
+    w1_grad.append(w.grad.data.numpy())
 for b in mlkn_ensemble.layer1.bias:
     if b is not None:
-        print(b.grad.data)
-"""
+        b1_grad.append(b.grad.data.numpy())
+print(w0_grad)
+print(w1_grad)
+print(b0_grad)
+print(b1_grad)
 #########
 # mlkn and mlkn_ensemble forward and evaluate (this test is nontrivial is lr>0
 # (use it to test
 # that params on mlkn_ensemble has been properly updated))
-
-mlkn.optimizer0 = torch.optim.SGD(mlkn.parameters(), lr=1)
+"""
+mlkn.optimizer0 = torch.optim.SGD(mlkn.parameters(), lr=1) # must not have called
+# fit before this line since fit would freeze all parameters in the model after
+# it is done, then there would be a bug when trying to hook this new optimizer
+# to its param_groups since the parameters now do not require grad anymore
 mlkn.optimizer1 = torch.optim.SGD(mlkn.parameters(), lr=1)
 
 mlkn_ensemble.optimizer0 = torch.optim.SGD(mlkn_ensemble.parameters(), lr=1)
@@ -165,7 +172,7 @@ mlkn_ensemble.fit(
     n_class=2,
     keep_grad=True
     )
-
+"""
 X_eval = mlkn(X)
 X_eval_ = mlkn.evaluate(X)
 # print(X_eval, X_eval_)
