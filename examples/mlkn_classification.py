@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# torch 0.3.1
+# torch 0.4.0
 
 from __future__ import division, print_function
 
@@ -28,16 +28,11 @@ if __name__=='__main__':
     #########
     # MKL benchmarks
     #########
-    dtype = torch.FloatTensor
-    if torch.cuda.is_available():
-        dtype = torch.cuda.FloatTensor
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     x, y = load_breast_cancer(return_X_y=True) # 1.40 (acc grad)/ 2.11
     # x, y = load_digits(return_X_y=True) # 5.23 (acc grad)/ 5.45
     # x, y = load_iris(return_X_y=True) # 9.33 (acc grad)/ 8.00
-
-    ensemble = True
-    batch_size=30
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could
     # do:
@@ -53,8 +48,9 @@ if __name__=='__main__':
     x = normalizer.fit_transform(x)
     n_class = int(np.amax(y) + 1)
 
-    X = Variable(torch.from_numpy(x).type(dtype), requires_grad=False)
-    Y = Variable(torch.from_numpy(y).type(torch.LongTensor), requires_grad=False)
+    # X, Y does not require grad by default
+    X = torch.tensor(x, dtype=torch.float, device=device)
+    Y = torch.tensor(y, dtype=torch.int64, device=device).view(-1,)
 
     # randomly permute data
     X, Y = K.rand_shuffle(X, Y)
@@ -65,6 +61,9 @@ if __name__=='__main__':
     x_test, y_test = X[index:], Y[index:]
 
     mlkn = MLKNClassifier()
+
+    ensemble = False # whether to use ensemble layer, see below
+    batch_size=30 # batch size for ensemble layer, not for training
 
     # sparsify the kernel machines on the second layer
     """
@@ -94,6 +93,16 @@ if __name__=='__main__':
         mlkn.add_layer(K.to_ensemble(layer0, batch_size))
         mlkn.add_layer(K.to_ensemble(layer1, batch_size))
 
+    # specify loss function for the output layer, this works with any
+    # PyTorch loss function but it is recommended that you use CrossEntropyLoss
+    mlkn.add_loss(torch.nn.CrossEntropyLoss())
+
+    # also add a metric to evaluate the model, this is not used for training.
+    # here we use classification error rate.
+    mlkn.add_metric(K.L0Loss())
+
+    mlkn.to(device)
+
     # add optimizer for each layer, this works with any torch.optim.Optimizer
     # note that this model is trained with the proposed layerwise training
     # method by default
@@ -103,16 +112,7 @@ if __name__=='__main__':
     mlkn.add_optimizer(
         torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=.1)
         )
-    # specify loss function for the output layer, this works with any
-    # PyTorch loss function but it is recommended that you use CrossEntropyLoss
-    mlkn.add_loss(torch.nn.CrossEntropyLoss())
 
-    # also add a metric to evaluate the model, this is not used for training.
-    # here we use classification error rate.
-    mlkn.add_metric(K.L0Loss())
-
-    if torch.cuda.is_available():
-        mlkn.cuda()
     # fit the model
     mlkn.fit(
         n_epoch=(30, 30),
@@ -128,4 +128,5 @@ if __name__=='__main__':
         )
 
     # make a prediction on the test set and print error
+    print('\ntest:')
     mlkn.evaluate(X_test=x_test, Y_test=y_test, batch_size=15)

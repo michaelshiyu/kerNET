@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# torch 0.3.1
+# torch 0.4.0
 
 import torch
 from torch.autograd import Variable
@@ -57,10 +57,12 @@ class kerLinear(torch.nn.Module):
         self.weight = self.linear.weight
         self.bias = self.linear.bias
 
-        self.X = X
         # NOTE: save X as an attribute is useful when one wants to combine data
         # from multiple domains
-        self.X_init = X # remembers the initial state of X for mlkn._forward
+        self.register_buffer('X', X)
+        # remembers the initial state of X for mlkn._forward, use X.clone() to
+        # break aliasing in case self.X is later modified
+        self.register_buffer('X_init', X.clone())
 
     def forward(self, x, use_saved=False):
         """

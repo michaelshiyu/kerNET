@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# torch 0.3.1
+# torch 0.4.0
 
 from __future__ import print_function, division
 import types
@@ -13,7 +13,7 @@ import backend as K
 from layers.kerlinear import kerLinear
 from layers.ensemble import kerLinearEnsemble
 # BUG: import is buggy if this script is run from kernet/kernet/models/
-
+# TODO: setup.py
 # TODO: multi-GPU support
 # TODO: python2 compatibility
 
@@ -38,7 +38,7 @@ class baseMLKN(torch.nn.Module):
         layer : a layer instance.
         """
         assert isinstance(layer, torch.nn.Module)
-        setattr(self, 'layer'+str(self._layer_counter), layer)
+        self.add_module('layer'+str(self._layer_counter), layer)
         self._layer_counter += 1
         # layer indexing : layer 0 is closest to input
 
@@ -56,7 +56,7 @@ class baseMLKN(torch.nn.Module):
         # torch.nn.LogSoftmax(dim=1) for output Tensor of shape
         # (n_example, n_class)). Base of the log functions in these operations
         # is e.
-        setattr(self, 'output_loss_fn', loss_fn)
+        self.add_module('output_loss_fn', loss_fn)
 
     def add_metric(self, metric_fn):
         """
@@ -105,9 +105,9 @@ class baseMLKN(torch.nn.Module):
                 if isinstance(layer.X, types.GeneratorType): # for ensemble layer
                     for j in range(layer._comp_counter):
                         comp = getattr(layer, 'comp'+str(j))
-                        comp.X = self.forward(comp.X_init, upto=i-1)
+                        comp.X = self.forward(comp.X_init, upto=i-1).detach()
                 else:
-                    layer.X = self.forward(layer.X_init, upto=i-1)
+                    layer.X = self.forward(layer.X_init, upto=i-1).detach()
                     # NOTE: if do not update using X_init, shape[1] of this
                     # data will not match data in previous layers, will cause
                     # issue in kerMap
@@ -138,66 +138,50 @@ class baseMLKN(torch.nn.Module):
         X_eval : Tensor, shape (n_example, layer_dim)
             Hidden representation of X_test at the given layer.
         """
-        # TODO: test
-        if not batch_size or batch_size>X_test.shape[0]: batch_size=X_test.shape[0]
-        if layer is None: layer=self._layer_counter-1
-        else: assert 0<=layer<=self._layer_counter-1
+        with torch.no_grad():
+            if not batch_size or batch_size>X_test.shape[0]: batch_size=X_test.shape[0]
+            if layer is None: layer=self._layer_counter-1
+            else: assert 0<=layer<=self._layer_counter-1
 
-        layer, layer_index = getattr(self, 'layer'+str(layer)), layer
-        out_dim = layer.out_dim
+            layer, layer_index = getattr(self, 'layer'+str(layer)), layer
 
-        X_eval = Variable(torch.cuda.FloatTensor(X_test.shape[0], out_dim),
-        requires_grad=False) if \
-        X_test.is_cuda else \
-        Variable(torch.FloatTensor(X_test.shape[0], out_dim), requires_grad=False)
+            i = 0
+            for x_test in K.get_batch(X_test, batch_size=batch_size):
+                x_eval = self.forward(
+                    x_test[0],
+                    upto=layer_index,
+                    update_X=False
+                    )
+                if i==0:
+                    X_eval = x_eval
+                else:
+                    X_eval = torch.cat((X_eval, x_eval))
+                i += 1
 
-        i = 0
-        for x_test in K.get_batch(X_test, batch_size=batch_size):
-            x_test = x_test[0].clone() # NOTE: clone turns x_test into a leaf
-            # Variable, which is required to set the volatile flag
-
-            # NOTE: when only one set is sent to get_batch,
-            # we need to use x_test[0] because no automatic unpacking has
-            # been done by Python
-            x_test.volatile = True
-            x_eval = self.forward(
-                x_test,
-                upto=layer_index,
-                update_X=False
-                )
-
-            if x_test.shape[0]<batch_size: # last batch
-                X_eval[i*batch_size:] = x_eval.data[:]
-                break
-            X_eval[i*batch_size: (i+1)*batch_size] = x_eval.data[:]
-            i += 1
-
-        if layer_index == self._layer_counter-1 and Y_test is not None:
-            # compute and print the metric if the entire model has been evaluated
-            # only evaluate when Y_test is provided
-            if self._metric_fn.__class__.__name__=='L0Loss':
-                # predict first
-                _, Y_pred = torch.max(X_eval, dim=1)
-                print('{}: {:.3f}'.format(
-                    'L0Loss (%)',
-                    self._metric_fn(y_pred=Y_pred, y=Y_test)*100
-                ))
-                # TODO: a better way to record history?
-                if write_to:
+            if layer_index == self._layer_counter-1 and Y_test is not None:
+                # compute and print the metric if the entire model has been evaluated
+                # only evaluate when Y_test is provided
+                if self._metric_fn.__class__.__name__=='L0Loss':
+                    # predict first
+                    _, Y_pred = torch.max(X_eval, dim=1)
                     print('{}: {:.3f}'.format(
                         'L0Loss (%)',
                         self._metric_fn(y_pred=Y_pred, y=Y_test)*100
-                    ), file=open(write_to,'a'))
-            else:
-                # assumes self._metric_fn is a torch loss object
-                print('{}: {:.3f}'.format(
-                    self._metric_fn.__class__.__name__,
-                    self._metric_fn(X_eval, Y_test).data[0]
-                ))
+                    ))
+                    # TODO: a better way to record history?
+                    if write_to:
+                        print('{}: {:.3f}'.format(
+                            'L0Loss (%)',
+                            self._metric_fn(y_pred=Y_pred, y=Y_test)*100
+                        ), file=open(write_to,'a'))
+                else:
+                    # assumes self._metric_fn is a torch loss object
+                    print('{}: {:.3f}'.format(
+                        self._metric_fn.__class__.__name__,
+                        self._metric_fn(X_eval, Y_test).item()
+                    ))
 
-        return X_eval
-        # NOTE: this is to make the type of Y_pred consistent with X_test since
-        # X_test must be a Variable
+            return X_eval
 
     def fit(self):
         raise NotImplementedError('must be implemented by subclass')
@@ -228,6 +212,7 @@ class MLKN(baseMLKN):
         X_val=None,
         Y_val=None,
         val_window=30,
+        verbose=True
         ):
         """
         Parameters
@@ -265,21 +250,7 @@ class MLKN(baseMLKN):
         n_batch = X.shape[0] // batch_size
         last_batch = bool(X.shape[0] % batch_size)
 
-        if len(Y.shape)==2: Y=Y.view(-1,)
-        # NOTE: CrossEntropyLoss requires label tensor to be of
-        # shape (n)
-        # TODO: what about multi-D MSELoss or CrossEntropyLoss?
-        if isinstance(self.output_loss_fn, torch.nn.CrossEntropyLoss):
-            Y=Y.type(torch.cuda.LongTensor)\
-            if Y.is_cuda else Y.type(torch.LongTensor)
-            # NOTE: required by CrossEntropyLoss
-
-        elif isinstance(self.output_loss_fn, torch.nn.MSELoss):
-            Y=Y.type(torch.cuda.FloatTensor)\
-            if Y.is_cuda else Y.type(torch.FloatTensor)
-            # NOTE: required by MSELoss
-
-        for param in self.parameters(): param.requires_grad=True # unfreeze
+        for param in self.parameters(): param.requires_grad_(True) # unfreeze
         for _ in range(n_epoch):
             __ = 0
             self.optimizer.zero_grad()
@@ -292,7 +263,7 @@ class MLKN(baseMLKN):
                 update_X = True if _==0 and __==0 else False
 
                 __ += 1
-                output = self.forward(x, update_X=update_X)
+                output = self(x, update_X=update_X)
 
                 loss = self.output_loss_fn(output, y)
                 # NOTE: L2 regulatization
@@ -303,7 +274,7 @@ class MLKN(baseMLKN):
                     print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
                         _+1, n_epoch, __, n_batch+int(last_batch),
                         self.output_loss_fn.__class__.__name__,
-                        loss.data[0]
+                        loss.item()
                         ))
 
                 if not accumulate_grad:
@@ -323,8 +294,6 @@ class MLKN(baseMLKN):
                 self.evaluate(X_test=X_val, Y_test=Y_val)
 
         if verbose: print('\n' + '#'*10 + '\n')
-        for param in self.parameters(): param.requires_grad=False # freeze
-        # the model
 
 class MLKNGreedy(baseMLKN):
     """
@@ -364,7 +333,7 @@ class MLKNGreedy(baseMLKN):
             optimizer = getattr(self, 'optimizer'+str(i))
             optimizer.param_groups[0]['params'] = list(layer.parameters())
 
-        for param in self.parameters(): param.requires_grad=False # Freeze all
+        for param in self.parameters(): param.requires_grad_(False) # Freeze all
         # layers. Only unfreeze a layer when optimizing it, then the amount of
         # calculation for gradients is minimized for each step.
 
@@ -407,7 +376,7 @@ class MLKNGreedy(baseMLKN):
             # loss but nn.Linear does not have a kernel so it cannot be the
             # next layer for any layer
 
-            for param in layer.parameters(): param.requires_grad=True # unfreeze
+            for param in layer.parameters(): param.requires_grad_(True) # unfreeze
 
             for _ in range(n_epoch[i]):
                 __ = 0
@@ -421,15 +390,11 @@ class MLKNGreedy(baseMLKN):
                     __ += 1
                     # get ideal gram matrix ####################################
                     ideal_gram = K.ideal_gram(y, y, n_group)
-                    ideal_gram=ideal_gram.type(torch.cuda.FloatTensor)\
-                    if ideal_gram.is_cuda else ideal_gram.type(torch.FloatTensor)
+                    ideal_gram=ideal_gram.type(torch.float)
                     # NOTE: required by CosineSimilarity
 
                     # get output ###############################################
-                    output = self.forward(x, upto=i, update_X=update_X)
-                    # output.register_hook(print)
-                    # print('output', output) # NOTE: layer0 initial feedforward
-                    # passed
+                    output = self(x, upto=i, update_X=update_X)
 
                     gram = K.kerMap(
                         output,
@@ -453,7 +418,7 @@ class MLKNGreedy(baseMLKN):
                         print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
                             _+1, n_epoch[i], __, n_batch+int(last_batch),
                             'Alignment',
-                            -loss.data[0]
+                            -loss.item()
                             ))
 
                     loss.backward()
@@ -469,7 +434,7 @@ class MLKNGreedy(baseMLKN):
                         optimizer.zero_grad()
 
             if verbose: print('\n' + '#'*10 + '\n')
-            for param in layer.parameters(): param.requires_grad=False # freeze
+            for param in layer.parameters(): param.requires_grad_(False) # freeze
             # this layer again
 
     def _fit_output(
@@ -503,24 +468,7 @@ class MLKNGreedy(baseMLKN):
         optimizer = getattr(self, 'optimizer'+str(i))
         layer = getattr(self, 'layer'+str(i))
 
-        if len(Y.shape)==2: Y=Y.view(-1,)
-        # NOTE: CrossEntropyLoss (and probably also MSELoss) requires label
-        # tensor to be of shape (n)
-
-        # TODO: what about multi-D MSELoss or CrossEntropyLoss?
-
-        if isinstance(self.output_loss_fn, torch.nn.CrossEntropyLoss):
-            Y=Y.type(torch.cuda.LongTensor)\
-            if Y.is_cuda else Y.type(torch.LongTensor)
-            # NOTE: required by CrossEntropyLoss
-
-        elif isinstance(self.output_loss_fn, torch.nn.MSELoss):
-            Y=Y.type(torch.cuda.FloatTensor)\
-            if Y.is_cuda else Y.type(torch.FloatTensor)
-            # NOTE: required by MSELoss
-
-
-        for param in layer.parameters(): param.requires_grad=True # unfreeze
+        for param in layer.parameters(): param.requires_grad_(True) # unfreeze
         for _ in range(n_epoch[i]):
             __ = 0
             optimizer.zero_grad()
@@ -533,7 +481,6 @@ class MLKNGreedy(baseMLKN):
                 __ += 1
                 # compute loss
                 output = self.forward(x, upto=i, update_X=update_X)
-                # print(output) # NOTE: layer1 initial feedforward passed
 
                 loss = self.output_loss_fn(output, y)
                 # print(loss) # NOTE: initial feedforward passed
@@ -545,7 +492,7 @@ class MLKNGreedy(baseMLKN):
                     print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
                         _+1, n_epoch[i], __, n_batch+int(last_batch),
                         self.output_loss_fn.__class__.__name__,
-                        loss.data[0]
+                        loss.item()
                         ))
 
                 loss.backward()
@@ -570,7 +517,7 @@ class MLKNGreedy(baseMLKN):
                 self.evaluate(X_test=X_val, Y_test=Y_val, write_to=write_to)
 
         if verbose: print('\n' + '#'*10 + '\n')
-        for param in layer.parameters(): param.requires_grad=False # freeze
+        for param in layer.parameters(): param.requires_grad_(False) # freeze
         # this layer again
 
 class MLKNClassifier(MLKNGreedy):
@@ -673,7 +620,7 @@ class MLKNClassifier(MLKNGreedy):
             keep_grad=keep_grad,
             verbose=verbose
             )
-        if verbose: print('Hidden layers trained.')
+        if verbose: print('\nHidden layers trained.\n')
 
         self._fit_output(
             n_epoch,
@@ -688,7 +635,7 @@ class MLKNClassifier(MLKNGreedy):
             keep_grad=keep_grad,
             verbose=verbose
             )
-        if verbose: print('Output layer trained.')
+        if verbose: print('\nOutput layer trained.\n')
 
 if __name__=='__main__':
     pass

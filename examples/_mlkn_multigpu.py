@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# torch 0.4.0
+# torch 0.3.1
 
 from __future__ import division, print_function
 
@@ -27,12 +27,17 @@ if __name__=='__main__':
     but not the greedy training method. Thus, it is applicable to any general
     learning problem including classification, regression, etc.
     """
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
     x, y = load_breast_cancer(return_X_y=True) # 3.51 (acc grad); 2.46
-    # x, y = load_digits(return_X_y=True) # 10.01 (acc grad); 4.89
-    x, y = load_iris(return_X_y=True) # 1.33 (acc grad); 5.33
+    x, y = load_digits(return_X_y=True) # 10.01 (acc grad); 4.89
+    # x, y = load_iris(return_X_y=True) # 1.33 (acc grad); 5.33
     # x, y = load_boston(return_X_y=True) # 0.0263 (acc grad); 0.0275
+
+    task = 'classification' # 'regression' or 'classification'
+    ensemble = False
+    batch_size=30 # for ensemble layers
+
+    n_gpu = torch.cuda.device_count()
+    gpus = list(range(n_gpu))
 
     # for other Multiple Kernel Learning benchmarks used in the paper, you could
     # do:
@@ -42,8 +47,6 @@ if __name__=='__main__':
     # subset of the data with size given in Table 1. This is to keep consistency
     # with the original paper that reported most of the results.
     # A random subset is chosen at each one of the 20 runs.
-
-    task = 'classification' # 'regression' or 'classification'
 
     # standardize features to zero-mean and unit-variance
     standard = StandardScaler()
@@ -55,15 +58,20 @@ if __name__=='__main__':
         minmax = MinMaxScaler()
         y = minmax.fit_transform(y)
 
+
     if task=='regression':
         layer1dim = y.shape[1]
-        y_dtype = torch.float
     elif task=='classification':
         layer1dim = int(np.amax(y) + 1)
-        y_dtype = torch.int64
 
-    X = torch.tensor(x, dtype=torch.float, device=device)
-    Y = torch.tensor(y, dtype=y_dtype, device=device)
+
+    dtype = torch.FloatTensor
+
+    X = Variable(torch.from_numpy(x).type(dtype), requires_grad=False)
+    Y = Variable(torch.from_numpy(y).type(dtype), requires_grad=False)
+    if torch.cuda.is_available():
+        X = X.cuda()
+        Y = Y.cuda()
 
     # randomly permute data
     X, Y = K.rand_shuffle(X, Y)
@@ -72,9 +80,6 @@ if __name__=='__main__':
     index = len(X)//2
     x_train, y_train = X[:index], Y[:index]
     x_test, y_test = X[index:], Y[index:]
-
-    ensemble = False
-    batch_size=30 # for ensemble layers
 
     mlkn = MLKN()
 
@@ -86,7 +91,6 @@ if __name__=='__main__':
     # F_n-1(...(F_0(layer.X))...)
 
     if not ensemble:
-        # add layers to the model, see layers/kerlinear for details on kerLinear
         mlkn.add_layer(layer0)
         mlkn.add_layer(layer1)
 
@@ -108,7 +112,9 @@ if __name__=='__main__':
         mlkn.add_loss(torch.nn.MSELoss())
         mlkn.add_metric(torch.nn.MSELoss())
 
-    mlkn.to(device)
+    if torch.cuda.is_available():
+        mlkn.cuda()
+
 
     # fit the model
     mlkn.fit(
@@ -123,7 +129,6 @@ if __name__=='__main__':
         val_window=5
         )
 
-    print('\ntest:')
     y_raw = mlkn.evaluate(X_test=x_test, Y_test=y_test)
 
     if task=='regression':
@@ -137,3 +142,48 @@ if __name__=='__main__':
         y_test_np = minmax.inverse_transform(y_test_np)
         mse = sum((y_raw_np - y_test_np)**2) / len(y_test_np)
         print('MSELoss(original scale): {:.4f}'.format(mse[0]))
+
+    #########
+    # using multiple GPUs
+    """
+    mlkn_parallel = torch.nn.DataParallel(mlkn)
+    loss_fn = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(
+        params=mlkn_parallel.parameters(), lr=1e-3, weight_decay=0.1
+        )
+    n_epoch = 30
+    batch_size=30
+    accumulate_grad=False
+
+    n_batch = x_train.shape[0] // batch_size
+    last_batch = bool(x_train.shape[0] % batch_size)
+
+    for _ in range(n_epoch):
+        __ = 0
+        optimizer.zero_grad()
+
+        for x, y in K.get_batch(x_train, y_train, batch_size=batch_size):
+            update_X = True if _==0 and __==0 else False
+            __ += 1
+            output = mlkn_parallel(x, update_X=update_X)
+
+            loss = loss_fn(output, y)
+            print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
+                _+1, n_epoch, __, n_batch+int(last_batch),
+                loss_fn.__class__.__name__,
+                loss.data[0]
+                ))
+
+            if not accumulate_grad:
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+                mlkn_parallel(x, update_X=True) # update X after each step
+
+            else:
+                loss.backward(retain_graph=True)
+        if accumulate_grad:
+            optimizer.step()
+            optimizer.zero_grad()
+            mlkn_parallel(x, update_X=True)
+    """

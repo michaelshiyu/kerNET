@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# torch 0.3.1
+# torch 0.4.0
 
 import torch
 from torch.autograd import Variable
@@ -57,7 +57,7 @@ class kerLinearEnsemble(_ensemble):
 
     def add(self, component):
         assert isinstance(component, kerLinear)
-        setattr(self, 'comp'+str(self._comp_counter), component)
+        self.add_module('comp'+str(self._comp_counter), component)
         self._comp_counter += 1
         self.sigma = component.sigma # TODO: allow components to have different
         # sigma?
@@ -72,12 +72,11 @@ class kerLinearEnsemble(_ensemble):
     # results if substitute normal layers with ensemble layers, checked that
     # the randperm vectors in K.rand_shuffle are different in two modes, why?
 
-        y = Variable(torch.FloatTensor(x.shape[0], self.out_dim).zero_())
-        if x.is_cuda: y=y.cuda()
+        y = x.new_zeros(x.shape[0], self.out_dim)
 
         for i in range(self._comp_counter):
             component = getattr(self, 'comp'+str(i))
-            y = y.add(component.forward(x))
+            y = y.add(component(x))
         return y
 
 if __name__=='__main__':

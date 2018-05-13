@@ -28,26 +28,17 @@ np.random.seed(1234)
 # TODO: deeper models
 # TODO: maybe test updated weights?
 
-class BaseMLKNTestCase(unittest.TestCase):
+class MLKNTestCase(unittest.TestCase):
     def setUp(self):
 
         #########
         # toy data
-        dtypeX, dtypeY = torch.FloatTensor, torch.LongTensor
-        # if torch.cuda.is_available():
-        #     dtypeX, dtypeY = torch.cuda.FloatTensor, torch.cuda.LongTensor
-        # TODO: if set this to true, will have to take care of converting many
-        # results in tests to cpu first before converting to numpy for comparison
-        # maybe should test on GPU as well
 
-        self.X = Variable(
-            torch.FloatTensor([[1, 2], [3, 4]]).type(dtypeX),
-            requires_grad=False
-            )
-        self.Y = Variable(
-            torch.FloatTensor([[0], [1]]).type(dtypeY),
-            requires_grad=False
-            )
+        # TODO: test on GPU as well
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        self.X = torch.tensor([[1, 2], [3, 4]], dtype=torch.float, device=device)
+        self.Y = torch.tensor([0, 1], dtype=torch.int64, device=device)
 
         #########
         # base mlkn
@@ -65,10 +56,10 @@ class BaseMLKNTestCase(unittest.TestCase):
             bias=True
         ))
         # manually set some weights
-        self.mlkn.layer0.weight.data = torch.FloatTensor([[.1, .2], [.5, .7]])
-        self.mlkn.layer0.bias.data = torch.FloatTensor([0, 0])
-        self.mlkn.layer1.weight.data = torch.FloatTensor([[1.2, .3], [.2, 1.7]])
-        self.mlkn.layer1.bias.data = torch.FloatTensor([0.1, 0.2])
+        self.mlkn.layer0.weight.data = torch.Tensor([[.1, .2], [.5, .7]])
+        self.mlkn.layer0.bias.data = torch.Tensor([0., 0.])
+        self.mlkn.layer1.weight.data = torch.Tensor([[1.2, .3], [.2, 1.7]])
+        self.mlkn.layer1.bias.data = torch.Tensor([0.1, 0.2])
 
         self.mlkn.add_loss(torch.nn.CrossEntropyLoss())
 
@@ -81,29 +72,31 @@ class BaseMLKNTestCase(unittest.TestCase):
 
         self.mlkn_ensemble.add_loss(torch.nn.CrossEntropyLoss())
 
+        self.mlkn.to(device)
+
 
     def test_forward_and_evaluate(self):
         # test forward
         X_eval = self.mlkn(self.X, update_X=True)
         X_eval_hidden = self.mlkn(self.X, update_X=True, upto=0)
         self.assertTrue(np.allclose(
-            X_eval.data.numpy(),
+            X_eval.detach().numpy(),
             np.array([[1.5997587, 2.0986326], [1.5990349, 2.0998392]])
             ))
         self.assertTrue(np.allclose(
-            X_eval_hidden.data.numpy(),
+            X_eval_hidden.detach().numpy(),
             np.array([[0.22823608, 0.9488263], [0.26411805, 1.0205902]])
             ))
         # test forward equals evaluate
         X_eval_ = self.mlkn.evaluate(self.X)
         X_eval_hidden_ = self.mlkn.evaluate(self.X, layer=0)
         self.assertTrue(np.array_equal(
-            X_eval.data.numpy(),
-            X_eval_.data.numpy()
+            X_eval.detach().numpy(),
+            X_eval_.detach().numpy()
             ))
         self.assertTrue(np.array_equal(
-            X_eval_hidden.data.numpy(),
-            X_eval_hidden_.data.numpy()
+            X_eval_hidden.detach().numpy(),
+            X_eval_hidden_.detach().numpy()
             ))
 
     def test_ensemble_forward_and_evaluate(self):
@@ -111,23 +104,23 @@ class BaseMLKNTestCase(unittest.TestCase):
         X_eval = self.mlkn_ensemble(self.X, update_X=True)
         X_eval_hidden = self.mlkn_ensemble(self.X, update_X=True, upto=0)
         self.assertTrue(np.allclose(
-            X_eval.data.numpy(),
+            X_eval.detach().numpy(),
             np.array([[1.5997587, 2.0986326], [1.5990349, 2.0998392]])
             ))
         self.assertTrue(np.allclose(
-            X_eval_hidden.data.numpy(),
+            X_eval_hidden.detach().numpy(),
             np.array([[0.22823608, 0.9488263], [0.26411805, 1.0205902]])
             ))
         # test forward equals evaluate for ensemble
         X_eval_ = self.mlkn_ensemble.evaluate(self.X)
         X_eval_hidden_ = self.mlkn_ensemble.evaluate(self.X, layer=0)
         self.assertTrue(np.array_equal(
-            X_eval.data.numpy(),
-            X_eval_.data.numpy()
+            X_eval.detach().numpy(),
+            X_eval_.detach().numpy()
             ))
         self.assertTrue(np.array_equal(
-            X_eval_hidden.data.numpy(),
-            X_eval_hidden_.data.numpy()
+            X_eval_hidden.detach().numpy(),
+            X_eval_hidden_.detach().numpy()
             ))
 
     def test_grad(self):
@@ -144,19 +137,19 @@ class BaseMLKNTestCase(unittest.TestCase):
             )
 
         self.assertTrue(np.allclose(
-            self.mlkn.layer0.weight.grad.data.numpy(),
+            self.mlkn.layer0.weight.grad.detach().numpy(),
             np.array([[0.00113756, -0.00113756], [0.00227511, -0.00227511]])
             ))
         self.assertTrue(np.allclose(
-            self.mlkn.layer0.bias.grad.data.numpy(),
+            self.mlkn.layer0.bias.grad.detach().numpy(),
             np.array([0., 0.])
             ))
         self.assertTrue(np.allclose(
-            self.mlkn.layer1.weight.grad.data.numpy(),
+            self.mlkn.layer1.weight.grad.detach().numpy(),
             np.array([[-0.12257326, -0.12217124], [0.12257326, 0.12217124]])
             ))
         self.assertTrue(np.allclose(
-            self.mlkn.layer1.bias.grad.data.numpy(),
+            self.mlkn.layer1.bias.grad.detach().numpy(),
             np.array([-0.12242149, 0.12242149])
             ))
 
@@ -172,18 +165,18 @@ class BaseMLKNTestCase(unittest.TestCase):
             keep_grad=True,
             verbose=False
             )
-            
+
         w0_grad, b0_grad, w1_grad, b1_grad = [], [], [], []
         for w in self.mlkn_ensemble.layer0.weight:
-            w0_grad.append(w.grad.data.numpy())
+            w0_grad.append(w.grad.detach().numpy())
         for b in self.mlkn_ensemble.layer0.bias:
             if b is not None:
-                b0_grad.append(b.grad.data.numpy())
+                b0_grad.append(b.grad.detach().numpy())
         for w in self.mlkn_ensemble.layer1.weight:
-            w1_grad.append(w.grad.data.numpy())
+            w1_grad.append(w.grad.detach().numpy())
         for b in self.mlkn_ensemble.layer1.bias:
             if b is not None:
-                b1_grad.append(b.grad.data.numpy())
+                b1_grad.append(b.grad.detach().numpy())
 
         self.assertTrue(np.allclose(
             w0_grad,
@@ -233,40 +226,40 @@ class BaseMLKNTestCase(unittest.TestCase):
         X_eval = self.mlkn(self.X, update_X=True)
         X_eval_ = self.mlkn.evaluate(self.X)
         self.assertTrue(np.array_equal(
-            X_eval.data.numpy(),
-            X_eval_.data.numpy()
+            X_eval.detach().numpy(),
+            X_eval_.detach().numpy()
             ))
 
         X_eval_hidden = self.mlkn(self.X, upto=0, update_X=True)
         X_eval_hidden_ = self.mlkn.evaluate(self.X, layer=0)
         self.assertTrue(np.array_equal(
-            X_eval_hidden.data.numpy(),
-            X_eval_hidden_.data.numpy()
+            X_eval_hidden.detach().numpy(),
+            X_eval_hidden_.detach().numpy()
             ))
 
         # test forward equals evaluate for ensemble
         X_eval_ensemble = self.mlkn_ensemble(self.X, update_X=True)
         X_eval_ensemble_ = self.mlkn_ensemble.evaluate(self.X)
         self.assertTrue(np.array_equal(
-            X_eval_ensemble.data.numpy(),
-            X_eval_ensemble_.data.numpy()
+            X_eval_ensemble.detach().numpy(),
+            X_eval_ensemble_.detach().numpy()
             ))
 
         X_eval_hidden_ensemble = self.mlkn_ensemble(self.X, upto=0, update_X=True)
         X_eval_hidden_ensemble_ = self.mlkn_ensemble.evaluate(self.X, layer=0)
         self.assertTrue(np.array_equal(
-            X_eval_hidden_ensemble.data.numpy(),
-            X_eval_hidden_ensemble_.data.numpy()
+            X_eval_hidden_ensemble.detach().numpy(),
+            X_eval_hidden_ensemble_.detach().numpy()
             ))
 
         # test ensemble equals ordinary
         self.assertTrue(np.allclose(
-            X_eval.data.numpy(),
-            X_eval_ensemble.data.numpy()
+            X_eval.detach().numpy(),
+            X_eval_ensemble.detach().numpy()
             ))
         self.assertTrue(np.allclose(
-            X_eval_hidden.data.numpy(),
-            X_eval_hidden_ensemble.data.numpy()
+            X_eval_hidden.detach().numpy(),
+            X_eval_hidden_ensemble.detach().numpy()
             ))
 
 if __name__=='__main__':

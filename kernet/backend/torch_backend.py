@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# torch 0.3.1
+# torch 0.4.0
 
 from __future__ import division, print_function
 
@@ -79,6 +79,8 @@ def kerMap(x, X, sigma):
 
     x_image : Tensor, shape (batch_size, n_example)
     """
+    # if x or X is not a Variable, must be the buffer self.X or self.X_init,
+    # hence there is no need to require grad for them
     x_image = gaussianKer(x, X, sigma)
 
     return x_image
@@ -106,31 +108,18 @@ def one_hot(y, n_class):
     assert n_class >= 2
     if len(y.shape)==1: y.unsqueeze_(0)
     assert len(y.shape)==2
-    if isinstance(y, Variable): y = y.data
-    # NOTE: y cannot be a Variable because scatter_ does not support autograd
 
-    original_dtype = y.type()
-
-    y=y.type(torch.cuda.LongTensor) if y.is_cuda else y.type(torch.LongTensor)
+    y = y.type(torch.int64)
     # NOTE: this is because scatter_ only supports LongTensor for its index param
 
     assert torch.max(y)+1 <= n_class
 
-    n_example = y.shape[0]
-
-    if y.is_cuda:
-        y_onehot = torch.FloatTensor(n_example, n_class).fill_(0).cuda()
-        ones = torch.FloatTensor(n_example, 1).fill_(1).cuda()
-    else:
-        y_onehot = torch.FloatTensor(n_example, n_class).fill_(0)
-        ones = torch.FloatTensor(n_example, 1).fill_(1)
+    y_onehot = y.new_zeros(y.shape[0], n_class)
+    ones = y.new_ones(y.shape[0], 1)
 
     y_onehot.scatter_(1, y, ones)
 
-    return Variable(y_onehot.type(original_dtype), requires_grad=False)
-    # NOTE: (for alignment) if this is not Variable, the following
-    # calculation for F inner prod cannot be done since .mul only supports
-    # Tensor*Tensor or Var*Var
+    return y_onehot
 
 def ideal_gram(y1, y2, n_class):
     """
@@ -282,9 +271,8 @@ def rand_shuffle(*sets):
     # new_index = torch.randperm(lens[0]) # BUG: when fit.shuffle=True, this
     # creates different random indices for kerLinear and kerLinearEnsemble,
     # which leads to different results
-    new_index = torch.from_numpy(np.random.permutation(lens[0]))
+    new_index = np.random.permutation(lens[0])
 
-    if sets[0].is_cuda: new_index=new_index.cuda()
     sets = list(map(lambda x: x[new_index], sets))
 
     return sets
@@ -314,10 +302,13 @@ def to_ensemble(layer, batch_size):
             sigma=layer.sigma,
             bias=use_bias
             )
+
+        # BUG: can it be dangerous to modify params in place?
         component.weight.data = \
-            layer.weight[:,i*batch_size:(i+1)*batch_size].data.clone()
+                layer.weight[:,i*batch_size:(i+1)*batch_size].clone()
+
         if use_bias:
-            component.bias.data = layer.bias.data.clone()
+            component.bias.data = layer.bias.clone()
 
         # shallow copy only (create new memory instead of an alias to the
         # original data), this is to prevent the returned ensemble instance share
@@ -350,11 +341,8 @@ class L0Loss:
         # y_pred = y_pred.type_as(y)
         # err = (y_pred!=y).sum().type(torch.FloatTensor).div_(float(y.shape[0])) # BUG
 
-        if y_pred.is_cuda: y_pred = y_pred.cpu()
-        if y.is_cuda: y = y.cpu()
-
-        if isinstance(y, Variable): y = y.data
-        if isinstance(y_pred, Variable): y_pred = y_pred.data
+        y_pred = y_pred.to('cpu')
+        y = y.to('cpu')
 
         err = float(sum(y_pred.numpy()!=y.numpy())) / y.shape[0]
         # BUG: for numpy objects converted from torch.tensor, still can access
@@ -384,33 +372,24 @@ def get_subset(X, Y, n, shuffle=True):
 
     y : (n,) or (n, 1)
     """
-    # TODO: this function is not in torch because the equivalent of np.concatenate
-    # is not available in torch until 0.4.0
-    # TODO: maybe a better way to do this?
     if n > X.shape[0]: n = X.shape[0]
-
-    if isinstance(X, Variable): X = X.data
-    if X.is_cuda:
-        X_ = X.cpu().numpy()
-    else:
-        X_ = X.numpy()
-    if isinstance(Y, Variable): Y = Y.data
-    if Y.is_cuda:
-        Y_ = Y.cpu().numpy()
-    else:
-        Y_ = Y.numpy()
-
     assert X_.shape[0]==Y_.shape[0]
+
+    X_ = X.to('cpu').numpy()
+    Y_ = Y.to('cpu').numpy()
 
     n_class = int(max(Y_) + 1)
     indices = {}
+
     for i in range(n_class):
         indices[i] = np.where(Y_==i)[0]
+
     batch = n // n_class
     leftover = n % n_class
     # each class should have at least as many as 'batch' examples
     x_ = np.concatenate([X_[indices[i][:batch]] for i in range(n_class)], axis=0)
     y_ = np.concatenate([Y_[indices[i][:batch]] for i in range(n_class)], axis=0)
+
     i = 0
     while i < leftover:
         x_ = np.concatenate((
@@ -422,10 +401,13 @@ def get_subset(X, Y, n, shuffle=True):
             Y_[indices[i % n_class][batch + 1 + i // n_class]][np.newaxis,]
             ))
         i += 1
-    x = Variable(torch.from_numpy(x_).type_as(X), requires_grad=False)
-    y = Variable(torch.from_numpy(y_).type_as(Y), requires_grad=False)
+
+    x = torch.tensor(x_, dtype=X.dtype, device=X.device, requires_grad=False)
+    y = torch.tensor(y_, dtype=Y.dtype, device=Y.device, requires_grad=False)
+
     if shuffle:
         x, y = rand_shuffle(x, y)
+
     return x, y
 
 
