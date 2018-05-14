@@ -8,7 +8,7 @@ Building a network with kernel machines here is as straightforward as building a
 
 For now, the project is very new and fairly unstable. We have much to add to it and we are also working on optimizing what's already there. Major functionalities have been tested (on CPU) under the following setup:
 - Python 3
-- PyTorch 0.3.1 (migration to 0.4.0 in progress)
+- PyTorch 0.4.0
 
 Currently, the best way to work with this API is by forking it or via ```git clone```. Hope you enjoy it and any suggestion or contribution would be greatly appreciated!
 
