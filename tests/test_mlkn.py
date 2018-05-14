@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# torch 0.3.1
+# torch 0.4.0
 
 import unittest
 import numpy as np
@@ -34,8 +34,7 @@ class MLKNTestCase(unittest.TestCase):
         #########
         # toy data
 
-        # TODO: test on GPU as well
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.X = torch.tensor([[1, 2], [3, 4]], dtype=torch.float, device=device)
         self.Y = torch.tensor([0, 1], dtype=torch.int64, device=device)
@@ -73,6 +72,7 @@ class MLKNTestCase(unittest.TestCase):
         self.mlkn_ensemble.add_loss(torch.nn.CrossEntropyLoss())
 
         self.mlkn.to(device)
+        self.mlkn_ensemble.to(device)
 
 
     def test_forward_and_evaluate(self):
@@ -80,23 +80,23 @@ class MLKNTestCase(unittest.TestCase):
         X_eval = self.mlkn(self.X, update_X=True)
         X_eval_hidden = self.mlkn(self.X, update_X=True, upto=0)
         self.assertTrue(np.allclose(
-            X_eval.detach().numpy(),
+            X_eval.detach().to('cpu').numpy(),
             np.array([[1.5997587, 2.0986326], [1.5990349, 2.0998392]])
             ))
         self.assertTrue(np.allclose(
-            X_eval_hidden.detach().numpy(),
+            X_eval_hidden.detach().to('cpu').numpy(),
             np.array([[0.22823608, 0.9488263], [0.26411805, 1.0205902]])
             ))
         # test forward equals evaluate
         X_eval_ = self.mlkn.evaluate(self.X)
         X_eval_hidden_ = self.mlkn.evaluate(self.X, layer=0)
         self.assertTrue(np.array_equal(
-            X_eval.detach().numpy(),
-            X_eval_.detach().numpy()
+            X_eval.detach().to('cpu').numpy(),
+            X_eval_.detach().to('cpu').numpy()
             ))
         self.assertTrue(np.array_equal(
-            X_eval_hidden.detach().numpy(),
-            X_eval_hidden_.detach().numpy()
+            X_eval_hidden.detach().to('cpu').numpy(),
+            X_eval_hidden_.detach().to('cpu').numpy()
             ))
 
     def test_ensemble_forward_and_evaluate(self):
@@ -104,23 +104,23 @@ class MLKNTestCase(unittest.TestCase):
         X_eval = self.mlkn_ensemble(self.X, update_X=True)
         X_eval_hidden = self.mlkn_ensemble(self.X, update_X=True, upto=0)
         self.assertTrue(np.allclose(
-            X_eval.detach().numpy(),
+            X_eval.detach().to('cpu').numpy(),
             np.array([[1.5997587, 2.0986326], [1.5990349, 2.0998392]])
             ))
         self.assertTrue(np.allclose(
-            X_eval_hidden.detach().numpy(),
+            X_eval_hidden.detach().to('cpu').numpy(),
             np.array([[0.22823608, 0.9488263], [0.26411805, 1.0205902]])
             ))
         # test forward equals evaluate for ensemble
         X_eval_ = self.mlkn_ensemble.evaluate(self.X)
         X_eval_hidden_ = self.mlkn_ensemble.evaluate(self.X, layer=0)
         self.assertTrue(np.array_equal(
-            X_eval.detach().numpy(),
-            X_eval_.detach().numpy()
+            X_eval.detach().to('cpu').numpy(),
+            X_eval_.detach().to('cpu').numpy()
             ))
         self.assertTrue(np.array_equal(
-            X_eval_hidden.detach().numpy(),
-            X_eval_hidden_.detach().numpy()
+            X_eval_hidden.detach().to('cpu').numpy(),
+            X_eval_hidden_.detach().to('cpu').numpy()
             ))
 
     def test_grad(self):
@@ -137,19 +137,19 @@ class MLKNTestCase(unittest.TestCase):
             )
 
         self.assertTrue(np.allclose(
-            self.mlkn.layer0.weight.grad.detach().numpy(),
+            self.mlkn.layer0.weight.grad.detach().to('cpu').numpy(),
             np.array([[0.00113756, -0.00113756], [0.00227511, -0.00227511]])
             ))
         self.assertTrue(np.allclose(
-            self.mlkn.layer0.bias.grad.detach().numpy(),
+            self.mlkn.layer0.bias.grad.detach().to('cpu').numpy(),
             np.array([0., 0.])
             ))
         self.assertTrue(np.allclose(
-            self.mlkn.layer1.weight.grad.detach().numpy(),
+            self.mlkn.layer1.weight.grad.detach().to('cpu').numpy(),
             np.array([[-0.12257326, -0.12217124], [0.12257326, 0.12217124]])
             ))
         self.assertTrue(np.allclose(
-            self.mlkn.layer1.bias.grad.detach().numpy(),
+            self.mlkn.layer1.bias.grad.detach().to('cpu').numpy(),
             np.array([-0.12242149, 0.12242149])
             ))
 
@@ -168,15 +168,15 @@ class MLKNTestCase(unittest.TestCase):
 
         w0_grad, b0_grad, w1_grad, b1_grad = [], [], [], []
         for w in self.mlkn_ensemble.layer0.weight:
-            w0_grad.append(w.grad.detach().numpy())
+            w0_grad.append(w.grad.detach().to('cpu').numpy())
         for b in self.mlkn_ensemble.layer0.bias:
             if b is not None:
-                b0_grad.append(b.grad.detach().numpy())
+                b0_grad.append(b.grad.detach().to('cpu').numpy())
         for w in self.mlkn_ensemble.layer1.weight:
-            w1_grad.append(w.grad.detach().numpy())
+            w1_grad.append(w.grad.detach().to('cpu').numpy())
         for b in self.mlkn_ensemble.layer1.bias:
             if b is not None:
-                b1_grad.append(b.grad.detach().numpy())
+                b1_grad.append(b.grad.detach().to('cpu').numpy())
 
         self.assertTrue(np.allclose(
             w0_grad,
@@ -226,40 +226,40 @@ class MLKNTestCase(unittest.TestCase):
         X_eval = self.mlkn(self.X, update_X=True)
         X_eval_ = self.mlkn.evaluate(self.X)
         self.assertTrue(np.array_equal(
-            X_eval.detach().numpy(),
-            X_eval_.detach().numpy()
+            X_eval.detach().to('cpu').numpy(),
+            X_eval_.detach().to('cpu').numpy()
             ))
 
         X_eval_hidden = self.mlkn(self.X, upto=0, update_X=True)
         X_eval_hidden_ = self.mlkn.evaluate(self.X, layer=0)
         self.assertTrue(np.array_equal(
-            X_eval_hidden.detach().numpy(),
-            X_eval_hidden_.detach().numpy()
+            X_eval_hidden.detach().to('cpu').numpy(),
+            X_eval_hidden_.detach().to('cpu').numpy()
             ))
 
         # test forward equals evaluate for ensemble
         X_eval_ensemble = self.mlkn_ensemble(self.X, update_X=True)
         X_eval_ensemble_ = self.mlkn_ensemble.evaluate(self.X)
         self.assertTrue(np.array_equal(
-            X_eval_ensemble.detach().numpy(),
-            X_eval_ensemble_.detach().numpy()
+            X_eval_ensemble.detach().to('cpu').numpy(),
+            X_eval_ensemble_.detach().to('cpu').numpy()
             ))
 
         X_eval_hidden_ensemble = self.mlkn_ensemble(self.X, upto=0, update_X=True)
         X_eval_hidden_ensemble_ = self.mlkn_ensemble.evaluate(self.X, layer=0)
         self.assertTrue(np.array_equal(
-            X_eval_hidden_ensemble.detach().numpy(),
-            X_eval_hidden_ensemble_.detach().numpy()
+            X_eval_hidden_ensemble.detach().to('cpu').numpy(),
+            X_eval_hidden_ensemble_.detach().to('cpu').numpy()
             ))
 
         # test ensemble equals ordinary
         self.assertTrue(np.allclose(
-            X_eval.detach().numpy(),
-            X_eval_ensemble.detach().numpy()
+            X_eval.detach().to('cpu').numpy(),
+            X_eval_ensemble.detach().to('cpu').numpy()
             ))
         self.assertTrue(np.allclose(
-            X_eval_hidden.detach().numpy(),
-            X_eval_hidden_ensemble.detach().numpy()
+            X_eval_hidden.detach().to('cpu').numpy(),
+            X_eval_hidden_ensemble.detach().to('cpu').numpy()
             ))
 
 if __name__=='__main__':

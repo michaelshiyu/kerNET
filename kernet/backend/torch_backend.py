@@ -13,6 +13,8 @@ sys.path.append('../kernet')
 from layers.kerlinear import kerLinear
 from layers.ensemble import kerLinearEnsemble
 
+# TODO: tests
+
 def gaussianKer(x, y, sigma):
     """
     Gaussian kernel: k(x, y) = exp(-||x-y||_2^2 / (2 * sigma^2)).
@@ -121,7 +123,7 @@ def one_hot(y, n_class):
 
     return y_onehot
 
-def ideal_gram(y1, y2, n_class):
+def ideal_gram(y1, y2, n_class, lower_lim=0):
     """
     Ideal Gram matrix for classification.
         k(x_i, x_j) = 1 if y_i == y_j;
@@ -137,12 +139,23 @@ def ideal_gram(y1, y2, n_class):
 
     n_class : int
 
+    lower_lim (optional) : float
+        Value for k(x_i, x_j) when y_i != y_j
+
     Returns
     -------
     ideal_gram : Tensor, shape (n1_example, n2_example)
     """
-    y1_onehot, y2_onehot = one_hot(y1, n_class), one_hot(y2, n_class)
+    # TODO: ideal gram for general kernels (lower_lim may no longer be 0 by
+    # default, should be min_{x, y\in X} k(x, y); k(x_i, x_i) may no longer be
+    # 1)
+    y1_onehot, y2_onehot = \
+        one_hot(y1, n_class).to(torch.float), one_hot(y2, n_class).to(torch.float)
+    # cuda requires arguments of .mm be of float type
     ideal_gram = y1_onehot.mm(y2_onehot.transpose(dim0=0, dim1=1))
+
+    lower_lim_mask = torch.full_like(ideal_gram, lower_lim)
+    ideal_gram = torch.where(ideal_gram==0, lower_lim_mask, ideal_gram)
     return ideal_gram
 
 def frobenius_inner_prod(mat1, mat2):
@@ -373,7 +386,7 @@ def get_subset(X, Y, n, shuffle=True):
     y : (n,) or (n, 1)
     """
     if n > X.shape[0]: n = X.shape[0]
-    assert X_.shape[0]==Y_.shape[0]
+    assert X.shape[0]==Y.shape[0]
 
     X_ = X.to('cpu').numpy()
     Y_ = Y.to('cpu').numpy()

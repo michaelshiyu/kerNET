@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# torch 0.3.1
+# torch 0.4.0
 
 from __future__ import division, print_function
 
@@ -23,9 +23,8 @@ if __name__=='__main__':
     # large vision datasets
     #########
 
-    dtype = torch.FloatTensor
-    if torch.cuda.is_available():
-        dtype = torch.cuda.FloatTensor
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     '''
     transform = torchvision.transforms.Compose([
         torchvision.transforms.Normalize(mean=(.5,), std=(1,)),
@@ -33,20 +32,20 @@ if __name__=='__main__':
     ])
 
     root = './torchvision_datasets'
-    train = torchvision.datasets.rectangles_image(
+    train = torchvision.datasets.rectangles(
         root=root,
         train=True,
         transform=transform,
         download=True
         )
-    test = torchvision.datasets.rectangles_image(
+    test = torchvision.datasets.rectangles(
         root=root,
         train=False,
         transform=transform
         )
     x_train = Variable(
         train.train_data.type(dtype), requires_grad=False
-        ).view(100000, -1)
+        ).view(10000, -1)
     y_train = Variable(
         train.train_labels.type(dtype), requires_grad=False
         )
@@ -67,40 +66,41 @@ if __name__=='__main__':
     """
     '''
 
-    addr = '/Users/michael/Desktop/Github/data/rectangles_image/'
-    addr = '/home/michaelshiyu/Github/data/rectangles_image/' # for miner
-    # addr = '/home/administrator/Github/data/rectangles_image/' # for lab
-    # addr = '/home/paperspace/Github/data/rectangles_image/' # for paperspace
-    x_train = Variable(torch.from_numpy(np.load(addr+'rectangles_image_train_img.npy')).type(dtype), requires_grad=False) # when change datasets, change size of validation set
-    y_train = Variable(torch.from_numpy(np.load(addr+'rectangles_image_train_label.npy')).type(dtype), requires_grad=False)
-    x_test = Variable(torch.from_numpy(np.load(addr+'rectangles_image_test_img.npy')).type(dtype), requires_grad=False)
-    y_test = Variable(torch.from_numpy(np.load(addr+'rectangles_image_test_label.npy')).type(dtype), requires_grad=False)
-    x_val = x_train[10000:]
-    y_val = y_train[10000:]
-    x_train = x_train[:10000]
-    y_train = y_train[:10000]
+    addr = '/Users/michael/Desktop/Github/data/rectangles/'
+    # addr = '/home/michaelshiyu/Github/data/rectangles/' # for miner
+    # addr = '/home/administrator/Github/data/rectangles/' # for lab
+    # addr = '/home/paperspace/Github/data/rectangles/' # for paperspace
+    x_train = torch.tensor(np.load(addr+'rectangles_train_img.npy'), dtype=torch.float, device=device, requires_grad=False) # when change datasets, change size of validation set
+    y_train = torch.tensor(np.load(addr+'rectangles_train_label.npy'), dtype=torch.int64, device=device, requires_grad=False)
+    x_test = torch.tensor(np.load(addr+'rectangles_test_img.npy'), dtype=torch.float, device=device, requires_grad=False)
+    y_test = torch.tensor(np.load(addr+'rectangles_test_label.npy'), dtype=torch.int64, device=device, requires_grad=False)
+    x_val = x_train[1000:]
+    y_val = y_train[1000:]
+    x_train = x_train[:1000]
+    y_train = y_train[:1000]
     n_class = int(torch.max(y_train) + 1)
 
     ensemble = True
     batch_size=100
 
-    history = 'rectangles_image1.txt'
-    for epo1 in [30, 50, 70]:
-        for epo2 in [10, 15, 20]:
-            for hidden_dim in [5, 10, 15]:
-                for lr1 in [1e-1, 1e-3]:
-                    for lr2 in [1e-1, 1e-3]:
-                        for w_decay1 in [1e-3, 1e-5, 1e-7]:
-                            for w_decay2 in [1e-3, 1e-5, 1e-7]:
+    # history = 'rectangles.txt'
+    history = None
+    for epo1 in [10]:
+        for epo2 in [10]:
+            for hidden_dim in [5]:
+                for lr1 in [1e-1]:
+                    for lr2 in [1e-1]:
+                        for w_decay1 in [1e-5]:
+                            for w_decay2 in [1e-3]:
                                 for sigma1 in [3]:
-                                    for sigma2 in [.5]:
-                                        for n_center2 in [10000]:
-                                            for seed in range(0, 5):
+                                    for sigma2 in [1.7]:
+                                        for n_center2 in [1000]:
+                                            for seed in range(2, 3):
 
                                                 torch.manual_seed(seed)
                                                 np.random.seed(seed)
 
-                                                print('sigma1', sigma1, 'sigma2', sigma2, 'epo1', epo1, 'epo2', epo2, 'hidden_dim', hidden_dim, 'lr1', lr1, 'lr2', lr2, 'w_decay1', w_decay1, 'w_decay2', w_decay2, 'n_center2', n_center2, 'seed', seed, file=open(history,'a'))
+                                                if history: print('sigma1', sigma1, 'sigma2', sigma2, 'epo1', epo1, 'epo2', epo2, 'hidden_dim', hidden_dim, 'lr1', lr1, 'lr2', lr2, 'w_decay1', w_decay1, 'w_decay2', w_decay2, 'n_center2', n_center2, 'seed', seed, file=open(history,'a'))
                                                 # print('sigma1', sigma1, 'sigma2', sigma2, 'epo1', epo1, 'epo2', epo2, 'hidden_dim', hidden_dim, 'lr1', lr1, 'lr2', lr2, 'w_decay1', w_decay1, 'w_decay2', w_decay2, 'seed', seed, file=open(history,'a'))
 
                                                 mlkn = MLKNClassifier()
@@ -133,8 +133,7 @@ if __name__=='__main__':
                                                 mlkn.add_loss(torch.nn.CrossEntropyLoss())
                                                 mlkn.add_metric(K.L0Loss())
 
-                                                if torch.cuda.is_available():
-                                                    mlkn.cuda()
+                                                mlkn.to(device)
 
 
                                                 mlkn.fit(
@@ -151,4 +150,4 @@ if __name__=='__main__':
                                                     write_to=history
                                                     )
 
-                                                # mlkn.evaluate(X_test=x_test, Y_test=y_test, batch_size=300, write_to=history)
+                                                mlkn.evaluate(X_test=x_test, Y_test=y_test, batch_size=300, write_to=history)

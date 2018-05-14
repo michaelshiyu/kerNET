@@ -376,6 +376,15 @@ class MLKNGreedy(baseMLKN):
             # loss but nn.Linear does not have a kernel so it cannot be the
             # next layer for any layer
 
+            #########
+            # lowest value for ideal gram
+            lower_lim = torch.min(K.kerMap(
+                X,
+                X,
+                next_layer.sigma
+                ))
+            #########
+
             for param in layer.parameters(): param.requires_grad_(True) # unfreeze
 
             for _ in range(n_epoch[i]):
@@ -389,8 +398,8 @@ class MLKNGreedy(baseMLKN):
                     update_X = True if _==0 and __==0 else False
                     __ += 1
                     # get ideal gram matrix ####################################
-                    ideal_gram = K.ideal_gram(y, y, n_group)
-                    ideal_gram=ideal_gram.type(torch.float)
+                    ideal_gram = K.ideal_gram(y, y, n_group, lower_lim=lower_lim)
+                    ideal_gram=ideal_gram.to(torch.float)
                     # NOTE: required by CosineSimilarity
 
                     # get output ###############################################

@@ -27,7 +27,8 @@ if __name__=='__main__':
     but not the greedy training method. Thus, it is applicable to any general
     learning problem including classification, regression, etc.
     """
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # BUG: error surprisingly high for the examples
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     x, y = load_breast_cancer(return_X_y=True) # 3.51 (acc grad); 2.46
     # x, y = load_digits(return_X_y=True) # 10.01 (acc grad); 4.89

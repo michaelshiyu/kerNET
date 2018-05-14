@@ -28,7 +28,7 @@ if __name__=='__main__':
     #########
     # MKL benchmarks
     #########
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     x, y = load_breast_cancer(return_X_y=True) # 1.40 (acc grad)/ 2.11
     # x, y = load_digits(return_X_y=True) # 5.23 (acc grad)/ 5.45
@@ -70,7 +70,7 @@ if __name__=='__main__':
     x_train_, y_train_ = K.get_subset(
         X=x_train,
         Y=y_train,
-        n=200,
+        n=x_train.shape[0],
         shuffle=True
         )
     """
@@ -113,6 +113,9 @@ if __name__=='__main__':
         torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=.1)
         )
 
+    # print(K.kerMap(mlkn.evaluate(x_train, layer=0), mlkn.evaluate(x_train, layer=0), sigma=.1))
+    # print(K.kerMap(x_train, x_train, sigma=.1))
+
     # fit the model
     mlkn.fit(
         n_epoch=(30, 30),
@@ -125,8 +128,11 @@ if __name__=='__main__':
         X_val=x_train,
         Y_val=y_train,
         val_window=5,
+        verbose=True
         )
 
     # make a prediction on the test set and print error
     print('\ntest:')
     mlkn.evaluate(X_test=x_test, Y_test=y_test, batch_size=15)
+
+    # print(K.kerMap(mlkn.evaluate(x_train, layer=0), mlkn.evaluate(x_train, layer=0), sigma=.1))
