@@ -49,12 +49,7 @@ def gaussianKer(x, y, sigma):
     # (n_example, channels*height*width) before
     # passing to this function. this does not make any difference to result.
 
-    gram = y.sub(x.unsqueeze(1)).pow(2).sum(dim=-1).mul(-1./(2*sigma**2)).exp()
-    # gram = y.sub(x.unsqueeze(1)).pow(2).sum(dim=-1).mul(-sigma).exp()
-    # TODO: this thing eats up memory like crazy, for those intermediate values
-    # that will not be used for gradient calculations, use in_place operations
-    # instead
-
+    gram = y.sub(x.unsqueeze(1)).pow_(2).sum(dim=-1).mul_(-1./(2*sigma**2)).exp_()
     return gram
 
 
@@ -154,8 +149,9 @@ def ideal_gram(y1, y2, n_class, lower_lim=0):
     # cuda requires arguments of .mm be of float type
     ideal_gram = y1_onehot.mm(y2_onehot.transpose(dim0=0, dim1=1))
 
-    lower_lim_mask = torch.full_like(ideal_gram, lower_lim)
-    ideal_gram = torch.where(ideal_gram==0, lower_lim_mask, ideal_gram)
+    if lower_lim!=0:
+        lower_lim_mask = torch.full_like(ideal_gram, lower_lim)
+        ideal_gram = torch.where(ideal_gram==0, lower_lim_mask, ideal_gram)
     return ideal_gram
 
 def frobenius_inner_prod(mat1, mat2):

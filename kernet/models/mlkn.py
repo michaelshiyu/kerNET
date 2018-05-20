@@ -378,11 +378,16 @@ class MLKNGreedy(baseMLKN):
 
             #########
             # lowest value for ideal gram
+            # BUG: this causes memory insufficiency for large datasets on GPU
+            # and CPU
+            """
             lower_lim = torch.min(K.kerMap(
-                X,
-                X,
+                X.to('cpu'),
+                X.to('cpu'),
                 next_layer.sigma
                 ))
+            """
+            lower_lim = 0
             #########
 
             for param in layer.parameters(): param.requires_grad_(True) # unfreeze
