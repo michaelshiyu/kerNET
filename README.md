@@ -6,7 +6,7 @@ For convenience, a few higher-level model abstractions are also available, inclu
 
 Building a network with kernel machines here is as straightforward as building a neural network in PyTorch: you basically just need to read [this great tutorial](http://pytorch.org/tutorials/beginner/blitz/neural_networks_tutorial.html#sphx-glr-beginner-blitz-neural-networks-tutorial-py).
 
-For now, the project is very new and fairly unstable. We have much to add to it and we are also working on optimizing what's already there. Major functionalities have been tested (on CPU) under the following setup:
+Dependencies:
 - Python 3
 - PyTorch 0.4.0
 
