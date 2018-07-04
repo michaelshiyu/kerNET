@@ -1,0 +1,13 @@
+README.md
+setup.py
+examples/__init__.py
+examples/_mlkn_multigpu.py
+examples/_mlkn_vision.py
+examples/_mlkn_vision3l.py
+examples/mlkn_classification.py
+examples/mlkn_generic.py
+kerNET.egg-info/PKG-INFO
+kerNET.egg-info/SOURCES.txt
+kerNET.egg-info/dependency_links.txt
+kerNET.egg-info/requires.txt
+kerNET.egg-info/top_level.txt
