@@ -3,9 +3,6 @@
 
 from __future__ import division, print_function
 
-from kernet.layers.kerlinear import * # cyclic reference, must import *
-from kernet.layers.ensemble import *
-
 import math as m
 import numpy as np
 import torch
@@ -285,6 +282,10 @@ def rand_shuffle(*sets):
     return sets
 
 def to_ensemble(layer, batch_size):
+    # do not do the import in the beginning, will cause circular
+    # inference
+    from kernet.layers.kerlinear import kerLinear
+    from kernet.layers.ensemble import kerLinearEnsemble
     """
     Break a layer object into an equivalent ensemble layer object.
 
