@@ -10,12 +10,10 @@ from sklearn.datasets import load_iris, load_breast_cancer, load_digits, \
 load_boston
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
-import sys
-sys.path.append('../kernet')
-import backend as K
-from models.mlkn import MLKN
-from layers.kerlinear import kerLinear
-from layers.ensemble import kerLinearEnsemble
+import kernet.backend as K
+from kernet.models.mlkn import MLKN
+from kernet.layers.kerlinear import kerLinear
+from kernet.layers.ensemble import kerLinearEnsemble
 
 torch.manual_seed(1234)
 np.random.seed(1234)

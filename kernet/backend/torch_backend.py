@@ -3,13 +3,13 @@
 
 from __future__ import division, print_function
 
+from kernet.layers.kerlinear import * # cyclic reference, must import *
+from kernet.layers.ensemble import *
+
 import math as m
 import numpy as np
 import torch
 from torch.autograd import Variable
-
-from kernet.layers.kerlinear import kerLinear
-from kernet.layers.ensemble import kerLinearEnsemble
 
 # TODO: tests
 

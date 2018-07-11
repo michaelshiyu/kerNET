@@ -3,9 +3,7 @@
 
 from __future__ import division, print_function
 
-# import sys
-# sys.path.append('../kernet')
-import kernet.backend.torch_backend as K
+import kernet.backend as K
 from kernet.models.mlkn import MLKNClassifier
 from kernet.layers.kerlinear import kerLinear
 from kernet.layers.ensemble import kerLinearEnsemble

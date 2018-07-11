@@ -10,7 +10,9 @@ Dependencies:
 - Python 3
 - PyTorch 0.4.0
 
-Currently, the best way to work with this API is by forking it or via ```git clone```. Hope you enjoy it and any suggestion or contribution would be greatly appreciated!
+To install, clone this repo to your local machine, go to the directory where the files live and do  ```python setup.py install```. 
+
+Hope you enjoy this repo and any suggestion or contribution would be greatly appreciated!
 
 ---------
 

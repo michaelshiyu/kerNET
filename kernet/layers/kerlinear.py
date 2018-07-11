@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 # torch 0.4.0
+import kernet.backend as K
 
 import torch
 from torch.autograd import Variable
-
-import kernet.backend as K
 
 torch.manual_seed(1234)
 
