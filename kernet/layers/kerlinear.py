@@ -4,9 +4,7 @@
 import torch
 from torch.autograd import Variable
 
-import sys
-sys.path.append('../kernet')
-import backend as K
+import kernet.backend as K
 
 torch.manual_seed(1234)
 

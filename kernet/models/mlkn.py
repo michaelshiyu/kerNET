@@ -7,13 +7,10 @@ import types
 import torch
 from torch.autograd import Variable
 
-import sys
-sys.path.append('../kernet')
-import backend as K
-from layers.kerlinear import kerLinear
-from layers.ensemble import kerLinearEnsemble
-# BUG: import is buggy if this script is run from kernet/kernet/models/
-# TODO: setup.py
+import kernet.backend as K
+from kernet.layers.kerlinear import kerLinear
+from kernet.layers.ensemble import kerLinearEnsemble
+
 # TODO: multi-GPU support
 # TODO: python2 compatibility
 
@@ -116,7 +113,7 @@ class baseMLKN(torch.nn.Module):
 
         return y
 
-    def evaluate(self, X_test, Y_test=None, layer=None, batch_size=None, write_to=None):
+    def evaluate(self, X_test, Y_test=None, layer=None, batch_size=None, write_to=None, end=None):
         """
         Feed in X_test and get output at a specified layer.
 
@@ -132,6 +129,12 @@ class baseMLKN(torch.nn.Module):
             zero-indexed with the 0th layer being the one closest to the input.
             If this parameter is not passed, evaluate the output of the entire
             network and calculate and print the metric value.
+
+        write_to (optional) : str
+            Address of the file to write the history of the loss function to. Value of the loss function will be recorded at each validation.
+
+        end (optional) : str
+            Trailing symbol for the write function at each write. Default is "\n".
 
         Returns
         -------
@@ -173,7 +176,7 @@ class baseMLKN(torch.nn.Module):
                         print('{}: {:.3f}'.format(
                             'L0Loss (%)',
                             self._metric_fn(y_pred=Y_pred, y=Y_test)*100
-                        ), file=open(write_to,'a'))
+                        ), file=open(write_to,'a'), end=end)
                 else:
                     # assumes self._metric_fn is a torch loss object
                     print('{}: {:.3f}'.format(
@@ -462,6 +465,7 @@ class MLKNGreedy(baseMLKN):
         Y_val=None,
         val_window=30,
         write_to=None,
+        end=None,
         keep_grad=False,
         verbose=True
         ):
@@ -528,7 +532,7 @@ class MLKNGreedy(baseMLKN):
                     optimizer.zero_grad()
 
             if X_val is not None and (_+1) % val_window==0:
-                self.evaluate(X_test=X_val, Y_test=Y_val, write_to=write_to)
+                self.evaluate(X_test=X_val, Y_test=Y_val, write_to=write_to, end=end)
 
         if verbose: print('\n' + '#'*10 + '\n')
         for param in layer.parameters(): param.requires_grad_(False) # freeze
@@ -560,6 +564,7 @@ class MLKNClassifier(MLKNGreedy):
         Y_val=None,
         val_window=30,
         write_to=None,
+        end=None,
         keep_grad=False,
         verbose=True
         ):
@@ -646,6 +651,7 @@ class MLKNClassifier(MLKNGreedy):
             Y_val=Y_val,
             val_window=val_window,
             write_to=write_to,
+            end=end,
             keep_grad=keep_grad,
             verbose=verbose
             )

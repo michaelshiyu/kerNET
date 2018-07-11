@@ -67,7 +67,7 @@ if __name__=='__main__':
     '''
 
     addr = '/Users/michael/Desktop/Github/data/mnist/'
-    # addr = '/home/michaelshiyu/Github/data/mnist/' # for miner
+    addr = '/home/michaelshiyu/Github/data/mnist/' # for miner
     # addr = '/home/administrator/Github/data/mnist/' # for lab
     # addr = '/home/paperspace/Github/data/mnist/' # for paperspace
     x_train = torch.tensor(np.load(addr+'mnist_train_img.npy'), dtype=torch.float, device=device, requires_grad=False) # when change datasets, change size of validation set
@@ -81,26 +81,26 @@ if __name__=='__main__':
     n_class = int(torch.max(y_train) + 1)
 
     ensemble = True
-    batch_size=3000
+    batch_size=1000
 
-    history = 'mnist.txt'
+    history = 'mnist2.txt'
     # history = None
-    for epo1 in [30, 50, 70]:
-        for epo2 in [10, 15, 20]:
-            for hidden_dim in [5, 10, 15]:
-                for lr1 in [1e-1, 1e-3, 1e-5]:
-                    for lr2 in [1e-1, 1e-3, 1e-5]:
+    for epo1 in [70]:
+        for epo2 in [20]:
+            for hidden_dim in [50, 150, 300, 500]:
+                for lr1 in [1e-1]:
+                    for lr2 in [1e-3]:
                         for w_decay1 in [1e-3, 1e-5, 1e-7]:
                             for w_decay2 in [1e-3, 1e-5, 1e-7]:
-                                for sigma1 in [1, 5, 10]:
-                                    for sigma2 in [.1, .5, 5]:
-                                        for n_center2 in [100, 1000, 10000]:
+                                for sigma1 in [3, 5, 7]:
+                                    for sigma2 in [3, 5, 7]:
+                                        for n_center2 in [10000]:
                                             for seed in range(0, 3):
 
                                                 torch.manual_seed(seed)
                                                 np.random.seed(seed)
 
-                                                if history: print('sigma1', sigma1, 'sigma2', sigma2, 'epo1', epo1, 'epo2', epo2, 'hidden_dim', hidden_dim, 'lr1', lr1, 'lr2', lr2, 'w_decay1', w_decay1, 'w_decay2', w_decay2, 'n_center2', n_center2, 'seed', seed, file=open(history,'a'))
+                                                if history: print('sigma1', sigma1, 'sigma2', sigma2, 'epo1', epo1, 'epo2', epo2, 'hidden_dim', hidden_dim, 'lr1', lr1, 'lr2', lr2, 'w_decay1', w_decay1, 'w_decay2', w_decay2, 'n_center2', n_center2, 'seed', seed, file=open(history,'a'), end=" ")
                                                 # print('sigma1', sigma1, 'sigma2', sigma2, 'epo1', epo1, 'epo2', epo2, 'hidden_dim', hidden_dim, 'lr1', lr1, 'lr2', lr2, 'w_decay1', w_decay1, 'w_decay2', w_decay2, 'seed', seed, file=open(history,'a'))
 
                                                 mlkn = MLKNClassifier()
@@ -147,7 +147,9 @@ if __name__=='__main__':
                                                     X_val=x_val,
                                                     Y_val=y_val,
                                                     val_window=5,
-                                                    write_to=history
+                                                    write_to=history,
+                                                    end=" "
                                                     )
 
-                                                mlkn.evaluate(X_test=x_test, Y_test=y_test, batch_size=1000, write_to=history)
+                                                mlkn.evaluate(X_test=x_test, Y_test=y_test, batch_size=1000, write_to=history,
+                                                end="\n")

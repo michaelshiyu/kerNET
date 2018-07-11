@@ -9,12 +9,10 @@ from torch.autograd import Variable
 from sklearn.datasets import load_iris, load_breast_cancer, load_digits
 from sklearn.preprocessing import StandardScaler
 
-import sys
-sys.path.append('../kernet')
-import backend as K
-from models.mlkn import MLKNClassifier
-from layers.kerlinear import kerLinear
-from layers.ensemble import kerLinearEnsemble
+import kernet.backend.torch_backend as K
+from kernet.models.mlkn import MLKNClassifier
+from kernet.layers.kerlinear import kerLinear
+from kernet.layers.ensemble import kerLinearEnsemble
 
 torch.manual_seed(1234)
 np.random.seed(1234)

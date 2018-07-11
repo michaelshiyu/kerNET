@@ -4,10 +4,8 @@
 import torch
 from torch.autograd import Variable
 
-import sys
-sys.path.append('../kernet')
-import backend as K
-from layers.kerlinear import kerLinear
+import kernet.backend as K
+from kernet.layers.kerlinear import kerLinear
 
 torch.manual_seed(1234)
 

@@ -32,13 +32,13 @@ if __name__=='__main__':
     ])
 
     root = './torchvision_datasets'
-    train = torchvision.datasets.rectangles(
+    train = torchvision.datasets.rectangles_image(
         root=root,
         train=True,
         transform=transform,
         download=True
         )
-    test = torchvision.datasets.rectangles(
+    test = torchvision.datasets.rectangles_image(
         root=root,
         train=False,
         transform=transform
@@ -66,40 +66,40 @@ if __name__=='__main__':
     """
     '''
 
-    addr = '/Users/michael/Desktop/Github/data/rectangles/'
-    addr = '/home/michaelshiyu/Github/data/rectangles/' # for miner
-    # addr = '/home/administrator/Github/data/rectangles/' # for lab
-    # addr = '/home/paperspace/Github/data/rectangles/' # for paperspace
-    x_train = torch.tensor(np.load(addr+'rectangles_train_img.npy'), dtype=torch.float, device=device, requires_grad=False) # when change datasets, change size of validation set
-    y_train = torch.tensor(np.load(addr+'rectangles_train_label.npy'), dtype=torch.int64, device=device, requires_grad=False)
-    x_test = torch.tensor(np.load(addr+'rectangles_test_img.npy'), dtype=torch.float, device=device, requires_grad=False)
-    y_test = torch.tensor(np.load(addr+'rectangles_test_label.npy'), dtype=torch.int64, device=device, requires_grad=False)
-    x_val = x_train[1000:]
-    y_val = y_train[1000:]
-    x_train = x_train[:1000]
-    y_train = y_train[:1000]
+    addr = '/Users/michael/Desktop/Github/data/rectangles_image/'
+    addr = '/home/michaelshiyu/Github/data/rectangles_image/' # for miner
+    # addr = '/home/administrator/Github/data/rectangles_image/' # for lab
+    # addr = '/home/paperspace/Github/data/rectangles_image/' # for paperspace
+    x_train = torch.tensor(np.load(addr+'rectangles_image_train_img.npy'), dtype=torch.float, device=device, requires_grad=False) # when change datasets, change size of validation set
+    y_train = torch.tensor(np.load(addr+'rectangles_image_train_label.npy'), dtype=torch.int64, device=device, requires_grad=False)
+    x_test = torch.tensor(np.load(addr+'rectangles_image_test_img.npy'), dtype=torch.float, device=device, requires_grad=False)
+    y_test = torch.tensor(np.load(addr+'rectangles_image_test_label.npy'), dtype=torch.int64, device=device, requires_grad=False)
+    x_val = x_train[10000:]
+    y_val = y_train[10000:]
+    x_train = x_train[:10000]
+    y_train = y_train[:10000]
     n_class = int(torch.max(y_train) + 1)
 
     ensemble = True
     batch_size=100
 
-    history = 'rectangles3l.txt'
+    history = 'rectangles_image3l.txt'
     # history = None
-    for epo0 in [10, 20, 30]:
-        for epo1 in [10, 20, 30]:
-            for epo2 in [10, 20, 30]:
-                for hidden_dim0 in [5, 10, 15]:
-                    for hidden_dim1 in [5, 10, 15]:
-                        for lr0 in [1e-1, 1e-2, 1e-3]:
-                            for lr1 in [1e-1, 1e-2, 1e-3]:
-                                for lr2 in [1e-1, 1e-2, 1e-3]:
+    for epo0 in [50]:
+        for epo1 in [50]:
+            for epo2 in [50]:
+                for hidden_dim0 in [50, 150]:
+                    for hidden_dim1 in [50, 150]:
+                        for lr0 in [1e-1, 1e-2]:
+                            for lr1 in [1e-1, 1e-2]:
+                                for lr2 in [1e-1, 1e-2]:
                                     for w_decay0 in [1e-1, 1e-3, 1e-5]:
                                         for w_decay1 in [1e-1, 1e-3, 1e-5]:
                                             for w_decay2 in [1e-1, 1e-3, 1e-5]:
-                                                for sigma0 in [1, 3, 5, 7, 9]:
-                                                    for sigma1 in [1, 2, 3, 4, 5]:
-                                                        for sigma2 in [.1, .5, 1, 1.5, 2, 2.5]:
-                                                            for n_center2 in [100, 500, 1000]:
+                                                for sigma0 in [1, 5, 9]:
+                                                    for sigma1 in [1, 3, 5]:
+                                                        for sigma2 in [1, 3, 5]:
+                                                            for n_center2 in [10000]:
                                                                 for seed in range(0, 3):
 
                                                                     torch.manual_seed(seed)
@@ -122,7 +122,8 @@ if __name__=='__main__':
                                                                         'w_decay2', w_decay2,
                                                                         'n_center2', n_center2,
                                                                         'seed', seed,
-                                                                        file=open(history,'a')
+                                                                        file=open(history,'a'),
+                                                                        end=' '
                                                                         )
 
                                                                     mlkn = MLKNClassifier()
@@ -167,7 +168,7 @@ if __name__=='__main__':
 
                                                                     mlkn.fit(
                                                                         n_epoch=(epo0, epo1, epo2),
-                                                                        batch_size=300,
+                                                                        batch_size=1000,
                                                                         shuffle=True,
                                                                         X=x_train,
                                                                         Y=y_train,
@@ -176,7 +177,9 @@ if __name__=='__main__':
                                                                         X_val=x_val,
                                                                         Y_val=y_val,
                                                                         val_window=5,
-                                                                        write_to=history
+                                                                        write_to=history,
+                                                                        end=' '
                                                                         )
 
-                                                                    mlkn.evaluate(X_test=x_test, Y_test=y_test, batch_size=5000, write_to=history)
+                                                                    mlkn.evaluate(X_test=x_test, Y_test=y_test, batch_size=1000, write_to=history,
+                                                                    end='\n')

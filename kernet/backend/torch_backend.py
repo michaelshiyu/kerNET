@@ -8,10 +8,8 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
-import sys
-sys.path.append('../kernet')
-from layers.kerlinear import kerLinear
-from layers.ensemble import kerLinearEnsemble
+from kernet.layers.kerlinear import kerLinear
+from kernet.layers.ensemble import kerLinearEnsemble
 
 # TODO: tests
 
