@@ -6,12 +6,10 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
-import sys
-sys.path.append('../kernet/')
-import backend as K
-from models.mlkn import baseMLKN, MLKN, MLKNGreedy, MLKNClassifier
-from layers.kerlinear import kerLinear
-from layers.ensemble import kerLinearEnsemble
+import kernet.backend as K
+from kernet.models.mlkn import baseMLKN, MLKN, MLKNGreedy, MLKNClassifier
+from kernet.layers.kerlinear import kerLinear
+from kernet.layers.ensemble import kerLinearEnsemble
 
 
 torch.manual_seed(1234)
