@@ -4,9 +4,9 @@
 from __future__ import division, print_function
 
 import kernet.backend as K
-from kernet.models.mlkn import MLKNClassifier
+from kernet.models.kn import KNClassifier
 from kernet.layers.kerlinear import kerLinear
-from kernet.layers.ensemble import kerLinearEnsemble
+from kernet.layers.multicomponent import kerLinearEnsemble, kerLinearStack
 
 import numpy as np
 import torch
@@ -21,7 +21,7 @@ np.random.seed(1234)
 
 if __name__=='__main__':
     """
-    This example demonstrates how a MLKN classifier works. Everything in here
+    This example demonstrates how a KN classifier works. Everything in here
     including the architecture of the learning machine and the training
     algorithm strictly follows this paper: https://arxiv.org/abs/1802.03774.
     """
@@ -59,11 +59,10 @@ if __name__=='__main__':
     index = len(X)//2
     x_train, y_train = X[:index], Y[:index]
     x_test, y_test = X[index:], Y[index:]
-
-    mlkn = MLKNClassifier()
+    kn = KNClassifier()
 
     ensemble = False # whether to use ensemble layer, see below
-    batch_size=30 # batch size for ensemble layer, not for training
+    batch_size=100 # batch size for ensemble layer, not for training
 
     # sparsify the kernel machines on the second layer
     """
@@ -74,51 +73,64 @@ if __name__=='__main__':
         shuffle=True
         )
     """
-
+    
+    # see kernet/layers/kerlinear.py for details for kerLinear
     layer0 = kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
-    layer1 = kerLinear(X=x_train, out_dim=n_class, sigma=.1, bias=True)
+    layer1 = kerLinear(X=x_train, out_dim=15, sigma=3, bias=True)
+    layer2 = kerLinear(X=x_train, out_dim=n_class, sigma=1, bias=True)
 
     # for non-input layers, pass to X the
     # set of raw data you want to center the kernel machines on,
     # for layer n, layer.X will be updated in runtime to
     # F_n-1(...(F_0(layer.X))...)
 
+    # you could also build a stack layer (see documentation in kernet/layers/ensemble.py)
+    layer0_ = kerLinearStack()
+    layer0_.add(layer0)
+    layer0_.add(layer1)
+
     if not ensemble:
-        # add layers to the model, see layers/kerlinear for details on kerLinear
-        mlkn.add_layer(layer0)
-        mlkn.add_layer(layer1)
+        # add layers to the model
+
+        kn.add_layer(layer0_)
+
+        # kn.add_layer(layer0)
+        # kn.add_layer(layer1)
+        kn.add_layer(layer2)
 
     else:
         # create ensemble layers so that large datasets can be fitted into memory
-        mlkn.add_layer(K.to_ensemble(layer0, batch_size))
-        mlkn.add_layer(K.to_ensemble(layer1, batch_size))
+
+        layer0_.to_ensemble_(batch_size)
+        kn.add_layer(layer0_)
+        kn.add_layer(layer2.to_ensemble(batch_size))
 
     # specify loss function for the output layer, this works with any
     # PyTorch loss function but it is recommended that you use CrossEntropyLoss
-    mlkn.add_loss(torch.nn.CrossEntropyLoss())
+    kn.add_loss(torch.nn.CrossEntropyLoss())
 
     # also add a metric to evaluate the model, this is not used for training.
     # here we use classification error rate.
-    mlkn.add_metric(K.L0Loss())
+    kn.add_metric(K.L0Loss())
 
-    mlkn.to(device)
+    kn.to(device)
 
     # add optimizer for each layer, this works with any torch.optim.Optimizer
     # note that this model is trained with the proposed layerwise training
     # method by default
-    mlkn.add_optimizer(
-        torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=0.1)
+    kn.add_optimizer(
+        torch.optim.Adam(params=kn.parameters(), lr=1e-3, weight_decay=0.1)
         )
-    mlkn.add_optimizer(
-        torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=.1)
+    kn.add_optimizer(
+        torch.optim.Adam(params=kn.parameters(), lr=1e-3, weight_decay=0.1)
         )
-
-    # print(K.kerMap(mlkn.evaluate(x_train, layer=0), mlkn.evaluate(x_train, layer=0), sigma=.1))
-    # print(K.kerMap(x_train, x_train, sigma=.1))
+    # kn.add_optimizer(
+    #     torch.optim.Adam(params=kn.parameters(), lr=1e-3, weight_decay=.1)
+    #     )
 
     # fit the model
-    mlkn.fit(
-        n_epoch=(30, 30),
+    kn.fit(
+        n_epoch=(30, 30, 20),
         batch_size=30,
         shuffle=True,
         X=x_train,
@@ -133,6 +145,4 @@ if __name__=='__main__':
 
     # make a prediction on the test set and print error
     print('\ntest:')
-    mlkn.evaluate(X_test=x_test, Y_test=y_test, batch_size=15)
-
-    # print(K.kerMap(mlkn.evaluate(x_train, layer=0), mlkn.evaluate(x_train, layer=0), sigma=.1))
+    kn.evaluate(X_test=x_test, Y_test=y_test, batch_size=15)

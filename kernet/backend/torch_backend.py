@@ -36,7 +36,8 @@ def gaussianKer(x, y, sigma):
     """
     if len(x.shape)==1: x.unsqueeze_(0)
     if len(y.shape)==1: y.unsqueeze_(0)
-    assert len(x.shape)==2 and len(y.shape)==2 and x.shape[1]==y.shape[1]
+    assert len(x.shape)==2 and len(y.shape)==2 
+    assert x.shape[1]==y.shape[1]
     # TODO: if len(x.shape)>=2 but only two dimensions are nontrivial, should
     # allow computation after squeezing into 2darray
     # TODO: for ndarrays where n>2, e.g., RGB images may have shape

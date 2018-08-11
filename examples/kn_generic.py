@@ -11,16 +11,16 @@ load_boston
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 import kernet.backend as K
-from kernet.models.mlkn import MLKN
+from kernet.models.kn import KN
 from kernet.layers.kerlinear import kerLinear
-from kernet.layers.ensemble import kerLinearEnsemble
+from kernet.layers.multicomponent import kerLinearEnsemble
 
 torch.manual_seed(1234)
 np.random.seed(1234)
 
 if __name__=='__main__':
     """
-    This example shows how a generic MLKN works. The MLKN implemented here
+    This example shows how a generic KN works. The KN implemented here
     inherits only the general architecture from https://arxiv.org/abs/1802.03774
     but not the greedy training method. Thus, it is applicable to any general
     learning problem including classification, regression, etc.
@@ -75,7 +75,7 @@ if __name__=='__main__':
     ensemble = False
     batch_size=30 # for ensemble layers
 
-    mlkn = MLKN()
+    kn = KN()
 
     layer0 = kerLinear(X=x_train, out_dim=15, sigma=5, bias=True)
     layer1 = kerLinear(X=x_train, out_dim=layer1dim, sigma=.1, bias=True)
@@ -86,31 +86,31 @@ if __name__=='__main__':
 
     if not ensemble:
         # add layers to the model, see layers/kerlinear for details on kerLinear
-        mlkn.add_layer(layer0)
-        mlkn.add_layer(layer1)
+        kn.add_layer(layer0)
+        kn.add_layer(layer1)
 
     else:
         # create ensemble layers so that large datasets can be fitted into memory
-        mlkn.add_layer(K.to_ensemble(layer0, batch_size))
-        mlkn.add_layer(K.to_ensemble(layer1, batch_size))
+        kn.add_layer(K.to_ensemble(layer0, batch_size))
+        kn.add_layer(K.to_ensemble(layer1, batch_size))
 
     # add optimizer for each layer, this works with any torch.optim.Optimizer
-    mlkn.add_optimizer(
-        torch.optim.Adam(params=mlkn.parameters(), lr=1e-3, weight_decay=0.1)
+    kn.add_optimizer(
+        torch.optim.Adam(params=kn.parameters(), lr=1e-3, weight_decay=0.1)
         )
     # specify loss function for the output layer, this works with any
     # PyTorch loss function but it is recommended that you use CrossEntropyLoss
     if task=='classification':
-        mlkn.add_loss(torch.nn.CrossEntropyLoss())
-        mlkn.add_metric(K.L0Loss())
+        kn.add_loss(torch.nn.CrossEntropyLoss())
+        kn.add_metric(K.L0Loss())
     elif task=='regression':
-        mlkn.add_loss(torch.nn.MSELoss())
-        mlkn.add_metric(torch.nn.MSELoss())
+        kn.add_loss(torch.nn.MSELoss())
+        kn.add_metric(torch.nn.MSELoss())
 
-    mlkn.to(device)
+    kn.to(device)
 
     # fit the model
-    mlkn.fit(
+    kn.fit(
         n_epoch=30,
         batch_size=30,
         shuffle=True,
@@ -123,7 +123,7 @@ if __name__=='__main__':
         )
 
     print('\ntest:')
-    y_raw = mlkn.evaluate(X_test=x_test, Y_test=y_test)
+    y_raw = kn.evaluate(X_test=x_test, Y_test=y_test)
 
     if task=='regression':
         if torch.cuda.is_available():

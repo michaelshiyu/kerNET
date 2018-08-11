@@ -1,2 +1,2 @@
-from .ensemble import *
+from .multicomponent import *
 from .kerlinear import *

@@ -10,7 +10,7 @@ torch.manual_seed(1234)
 class kerLinear(torch.nn.Module):
     def __init__(self, X, out_dim, sigma, bias=True):
         """
-        Building block for MLKN.
+        Building block for KN.
         A kernel linear layer first applies to input sample x a nonlinear map
         determined by the kernel function and the given random sample X:
 
@@ -57,7 +57,7 @@ class kerLinear(torch.nn.Module):
         # NOTE: save X as an attribute is useful when one wants to combine data
         # from multiple domains
         self.register_buffer('X', X)
-        # remembers the initial state of X for mlkn._forward, use X.clone() to
+        # remembers the initial state of X for kn._forward, use X.clone() to
         # break aliasing in case self.X is later modified
         self.register_buffer('X_init', X.clone())
 
@@ -90,34 +90,8 @@ class kerLinear(torch.nn.Module):
 
         return y
 
+    def to_ensemble(self, batch_size):
+        return K.to_ensemble(self, batch_size)
+
 if __name__=='__main__':
-
-    dtype = torch.FloatTensor
-    if torch.cuda.is_available():
-        dtype = torch.cuda.FloatTensor
-
-    x = Variable(torch.FloatTensor([[0, 7], [1, 2]]).type(dtype))
-    X = Variable(torch.FloatTensor([[1, 2], [3, 4], [5, 6]]).type(dtype))
-    y = Variable(torch.FloatTensor([[.3], [.9]]).type(dtype))
-
-    l = kerLinear(X, out_dim=1, sigma=1, bias=True)
-
-    y_pred = l(x)
-    print('y_pred', y_pred)
-    print('weight', l.linear.weight)
-    print('bias', l.linear.bias)
-    print('params', list(l.parameters()))
-
-    """
-    criterion = torch.nn.MSELoss(size_average=False)
-    optimizer = torch.optim.SGD(l.parameters(), lr=1e-4)
-    for t in range(500):
-        y_pred = l(x, X)
-        loss = criterion(y_pred, y)
-        print(t, loss.data[0])
-
-        # Zero gradients, perform a backward pass, and update the weights.
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-    """
+    pass
