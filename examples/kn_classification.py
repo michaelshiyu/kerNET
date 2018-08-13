@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-# torch 0.4.0
-
-from __future__ import division, print_function
 
 import kernet.backend as K
 from kernet.models.kn import KNClassifier
@@ -13,8 +10,6 @@ import torch
 from torch.autograd import Variable
 from sklearn.datasets import load_iris, load_breast_cancer, load_digits
 from sklearn.preprocessing import StandardScaler
-
-
 
 torch.manual_seed(1234)
 np.random.seed(1234)

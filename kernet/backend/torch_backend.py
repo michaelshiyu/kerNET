@@ -286,7 +286,7 @@ def to_ensemble(layer, batch_size):
     # do not do the import in the beginning, will cause circular
     # inference
     from kernet.layers.kerlinear import kerLinear
-    from kernet.layers.ensemble import kerLinearEnsemble
+    from kernet.layers.multicomponent import kerLinearEnsemble
     """
     Break a layer object into an equivalent ensemble layer object.
 
