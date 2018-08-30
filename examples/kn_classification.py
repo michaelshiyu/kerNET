@@ -132,6 +132,7 @@ if __name__=='__main__':
         Y=y_train,
         n_class=n_class,
         accumulate_grad=True,
+        hidden_cost='MSE',
         X_val=x_train,
         Y_val=y_train,
         val_window=5,

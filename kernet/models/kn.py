@@ -441,6 +441,7 @@ class KNGreedy(baseKN):
         batch_size=None,
         shuffle=False,
         accumulate_grad=True,
+        cost='alignment',
         keep_grad=False,
         verbose=True
         ):
@@ -486,6 +487,9 @@ class KNGreedy(baseKN):
         verbose (optional) : bool
             If true, print value of the loss function at each epoch. 
 
+        cost (optional) : str
+            Cost function to use for the hidden layers. 'alignment' or 'MSE'.
+
         keep_grad (optional) : bool
             If True, will not zero grad after each grad update (which will lead
             to wrong results!). Set to true only when you want to check or 
@@ -505,7 +509,12 @@ class KNGreedy(baseKN):
         # K.ideal_gram() requires label tensor to be of shape (n, 1)
 
         # default cost function for hidden layers is empirical alignment
-        loss_fn = torch.nn.CosineSimilarity() # equivalent to alignment
+        # can also use MSE (between two matrices)
+        if cost=='alignment':
+            loss_fn = torch.nn.CosineSimilarity() # equivalent to alignment
+        elif cost=='MSE':
+            loss_fn = torch.nn.MSELoss(size_average=True, reduce=True)
+
         for i in range(self._layer_counter-1):
             optimizer = getattr(self, 'optimizer'+str(i))
             next_layer = getattr(self, 'layer'+str(i+1))
@@ -544,14 +553,24 @@ class KNGreedy(baseKN):
                     # L2 regulatization
                     # is taken care of by setting the weight_decay param in the
                     # optimizer
-                    loss = -loss_fn(gram.view(1, -1), ideal_gram.view(1, -1))
+                    if cost=='alignment':
+                        loss = -loss_fn(gram.view(1, -1), ideal_gram.view(1, -1))
+                    elif cost=='MSE':
+                        loss = loss_fn(gram, ideal_gram)
 
                     if verbose:
-                        print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
-                            _+1, n_epoch[i], __, n_batch+int(last_batch),
-                            'Alignment',
-                            -loss.item()
-                            ))
+                        if cost=='alignment':
+                            print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
+                                _+1, n_epoch[i], __, n_batch+int(last_batch),
+                                'Alignment',
+                                -loss.item()
+                                ))
+                        elif cost=='MSE':
+                            print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
+                                _+1, n_epoch[i], __, n_batch+int(last_batch),
+                                'MSE',
+                                loss.item()
+                                ))
 
                     loss.backward()
                     # no need to update X at each weight update in layerwise 
@@ -728,6 +747,7 @@ class KNClassifier(KNGreedy):
         X_val=None,
         Y_val=None,
         val_window=30,
+        hidden_cost='alignment',
         write_to=None,
         end=None,
         keep_grad=False,
@@ -766,6 +786,10 @@ class KNClassifier(KNGreedy):
         val_window (optional) : int
             The number of epochs between validations.
 
+        hidden_cost (optional) : str
+            Cost function to use for the hidden layers. Default to 'alignment'.
+            Can also be 'MSE'.
+
         write_to (optional) : str
             Address of the file to write the history of the metric value to. Each 
             write only append value of the metric to the file. It does not do
@@ -803,6 +827,7 @@ class KNClassifier(KNGreedy):
             batch_size=batch_size,
             shuffle=shuffle,
             accumulate_grad=accumulate_grad,
+            cost=hidden_cost,
             keep_grad=keep_grad,
             verbose=verbose
             )
