@@ -442,6 +442,7 @@ class KNGreedy(baseKN):
         shuffle=False,
         accumulate_grad=True,
         cost='alignment',
+        cluster_class='True',
         keep_grad=False,
         verbose=True
         ):
@@ -490,6 +491,14 @@ class KNGreedy(baseKN):
         cost (optional) : str
             Cost function to use for the hidden layers. 'alignment' or 'MSE'.
 
+        cluster_class (optional) : str
+            Whether to enforce examples from the same class to be mapped closer
+            in the RKHS. Default to 'True'. The optimal representation does not 
+            naturally require this, but by enforcing so, the upper layers can 
+            be easily accelerated without much performance loss.
+
+            This is ignored if cost is alignment.
+
         keep_grad (optional) : bool
             If True, will not zero grad after each grad update (which will lead
             to wrong results!). Set to true only when you want to check or 
@@ -536,7 +545,12 @@ class KNGreedy(baseKN):
                     __ += 1
 
                     # calculate the target kernel matrix
-                    ideal_gram = K.ideal_gram(y, y, n_group)
+                    if cluster_class is True:
+                        ideal_gram = K.ideal_gram(y, y, n_group)
+                    else:
+                        ideal_gram, zero_mask = K.ideal_gram(
+                            y, y, n_group, ignore_same_class=True
+                            )
                     # convert to float type, required by CosineSimilarity
                     ideal_gram=ideal_gram.to(torch.float)
 
@@ -548,7 +562,7 @@ class KNGreedy(baseKN):
                         output,
                         next_layer.sigma
                         )
-
+                    
                     # negative alignment
                     # L2 regulatization
                     # is taken care of by setting the weight_decay param in the
@@ -556,7 +570,17 @@ class KNGreedy(baseKN):
                     if cost=='alignment':
                         loss = -loss_fn(gram.view(1, -1), ideal_gram.view(1, -1))
                     elif cost=='MSE':
-                        loss = loss_fn(gram, ideal_gram)
+                        if cluster_class is False:
+                            loss = \
+                            loss_fn(zero_mask*gram, zero_mask*ideal_gram)
+                            # y.shape[0]/zero_mask.sum() * \
+                            # TODO should rescale the loss by dividing 
+                            # n_pairs_of_examples_from_distinct_classes to make
+                            # it \emph{mean} squared error
+                            # mul by y.shape[0] is to undo the size_average of
+                            # torch.nn.MSELoss
+                        else:
+                            loss = loss_fn(gram, ideal_gram)
 
                     if verbose:
                         if cost=='alignment':
@@ -748,6 +772,7 @@ class KNClassifier(KNGreedy):
         Y_val=None,
         val_window=30,
         hidden_cost='alignment',
+        cluster_class='True',
         write_to=None,
         end=None,
         keep_grad=False,
@@ -790,6 +815,12 @@ class KNClassifier(KNGreedy):
             Cost function to use for the hidden layers. Default to 'alignment'.
             Can also be 'MSE'.
 
+        cluster_class (optional) : str
+            Whether to enforce examples from the same class to be mapped closer
+            in the RKHS. Default to 'True'. The optimal representation does not 
+            naturally require this, but by enforcing so, the upper layers can 
+            be easily accelerated without much performance loss.
+
         write_to (optional) : str
             Address of the file to write the history of the metric value to. Each 
             write only append value of the metric to the file. It does not do
@@ -828,6 +859,7 @@ class KNClassifier(KNGreedy):
             shuffle=shuffle,
             accumulate_grad=accumulate_grad,
             cost=hidden_cost,
+            cluster_class=cluster_class,
             keep_grad=keep_grad,
             verbose=verbose
             )

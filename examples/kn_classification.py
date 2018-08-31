@@ -125,7 +125,7 @@ if __name__=='__main__':
 
     # fit the model
     kn.fit(
-        n_epoch=(30, 30, 20),
+        n_epoch=(20, 20, 20),
         batch_size=30,
         shuffle=True,
         X=x_train,
@@ -133,12 +133,12 @@ if __name__=='__main__':
         n_class=n_class,
         accumulate_grad=True,
         hidden_cost='MSE',
+        cluster_class=True,
         X_val=x_train,
         Y_val=y_train,
         val_window=5,
         verbose=True
         )
-
     # make a prediction on the test set and print error
     print('\ntest:')
     kn.evaluate(X_test=x_test, Y_test=y_test, batch_size=15)

@@ -114,9 +114,9 @@ def one_hot(y, n_class):
 
     return y_onehot
 
-def ideal_gram(y1, y2, n_class, lower_lim=0):
+def ideal_gram(y1, y2, n_class, lower_lim=0, ignore_same_class=False):
     """
-    Ideal Gram matrix for classification.
+    Ideal Gram matrix for Gaussian kernel.
         k(x_i, x_j) = 1 if y_i == y_j;
         k(x_i, x_j) = 0 if y_i != y_j.
 
@@ -133,13 +133,16 @@ def ideal_gram(y1, y2, n_class, lower_lim=0):
     lower_lim (optional) : float
         Value for k(x_i, x_j) when y_i != y_j
 
+    ignore_same_class (optional) : bool
+        If set to True, returns a mask that, when multiplied to the ideal or 
+        actual kernel matrices, zeros out all entries conrresponding
+        to pairs of examples from the same class.
+
     Returns
     -------
     ideal_gram : Tensor, shape (n1_example, n2_example)
     """
-    # TODO: ideal gram for general kernels (lower_lim may no longer be 0 by
-    # default, should be min_{x, y\in X} k(x, y); k(x_i, x_i) may no longer be
-    # 1)
+    # TODO: ideal gram for general kernels, check upper_lim > lower_lim
     y1_onehot, y2_onehot = \
         one_hot(y1, n_class).to(torch.float), one_hot(y2, n_class).to(torch.float)
     # cuda requires arguments of .mm be of float type
@@ -148,6 +151,21 @@ def ideal_gram(y1, y2, n_class, lower_lim=0):
     if lower_lim!=0:
         lower_lim_mask = torch.full_like(ideal_gram, lower_lim)
         ideal_gram = torch.where(ideal_gram==0, lower_lim_mask, ideal_gram)
+    
+    """
+    # for general kernels
+    if upper_lim!=1:
+        upper_lim_mask = torch.full_like(ideal_gram, upper_lim)
+        ideal_gram = torch.where(ideal_gram==1, upper_lim_mask, ideal_gram)
+    """
+
+    if ignore_same_class:
+        ones = torch.ones_like(ideal_gram) 
+        zeros = torch.zeros_like(ideal_gram)
+
+        zero_mask = torch.where(ideal_gram==1, zeros, ones)# TODO turn one to upper_lim for general kernels
+        return ideal_gram, zero_mask
+
     return ideal_gram
 
 def frobenius_inner_prod(mat1, mat2):
@@ -426,11 +444,11 @@ if __name__=='__main__':
     # y = kerMap(x, X, sigma=1)
     y = torch.FloatTensor([[1], [3], [2]])
     y_ = torch.FloatTensor([[2], [1]])
-    gram1 = ideal_gram(y, y_, 4)
-    print(gram1)
+    gram1, zero_mask = ideal_gram(y, y_, 4, ignore_same_class=True)
+    print(gram1, '\n', zero_mask, '\n', (gram1+1)*zero_mask)
     y = torch.FloatTensor([[3], [3], [3]])
     y_ = torch.FloatTensor([[3], [3]])
     gram2 = ideal_gram(y, y_, 4)
     print(gram2)
-    print(frobenius_inner_prod(gram1, gram2))
-    print(alignment(gram1, gram2))
+    # print(frobenius_inner_prod(gram1, gram2))
+    # print(alignment(gram1, gram2))
