@@ -442,7 +442,7 @@ class KNGreedy(baseKN):
         shuffle=False,
         accumulate_grad=True,
         cost='alignment',
-        cluster_class='True',
+        cluster_class=True,
         keep_grad=False,
         verbose=True
         ):
@@ -493,7 +493,7 @@ class KNGreedy(baseKN):
 
         cluster_class (optional) : str
             Whether to enforce examples from the same class to be mapped closer
-            in the RKHS. Default to 'True'. The optimal representation does not 
+            in the RKHS. Default to True. The optimal representation does not 
             naturally require this, but by enforcing so, the upper layers can 
             be easily accelerated without much performance loss.
 
@@ -505,6 +505,9 @@ class KNGreedy(baseKN):
             use the gradient for some reason.
         """
 
+        assert cost in ['alignment', 'MSE']
+        assert cluster_class in [True, False]
+        
         # this model only supports hard class labels
         assert len(Y.shape) <= 2
         assert X.shape[0]==Y.shape[0]
@@ -772,7 +775,7 @@ class KNClassifier(KNGreedy):
         Y_val=None,
         val_window=30,
         hidden_cost='alignment',
-        cluster_class='True',
+        cluster_class=True,
         write_to=None,
         end=None,
         keep_grad=False,
@@ -817,7 +820,7 @@ class KNClassifier(KNGreedy):
 
         cluster_class (optional) : str
             Whether to enforce examples from the same class to be mapped closer
-            in the RKHS. Default to 'True'. The optimal representation does not 
+            in the RKHS. Default to True. The optimal representation does not 
             naturally require this, but by enforcing so, the upper layers can 
             be easily accelerated without much performance loss.
 
