@@ -1,5 +1,7 @@
 ﻿# kerNET
 
+**(Jan. 18, 2019) This repo is under active development, major updates are expected. I am trying to make it easier to use and more memory efficient. Feel free to open an issue if you find something that doesn't work as expected. And you are more than welcome to contribute!**
+
 kerNET is a simple, high-level, PyTorch-based API that helps you build kernel machine-powered connectionist models easily. It is based on [PyTorch](http://pytorch.org/) in order to make GPU acceleration possible (just like neural networks, these models require operations on large matrices).
 kerNET is essentially PyTorch plus some extra layers that are building blocks for such models.
 For convenience, a few higher-level model abstractions are also available, including MultiLayer Kernel Network (MLKN) proposed in [this paper](https://arxiv.org/abs/1802.03774).
