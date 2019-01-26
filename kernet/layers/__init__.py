@@ -1,2 +1,1 @@
-from .multicomponent import *
-from .kerlinear import *
+from .kn import *

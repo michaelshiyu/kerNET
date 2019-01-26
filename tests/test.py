@@ -1,30 +1,23 @@
-# -*- coding: utf-8 -*-
-# torch 0.4.0
+#!/usr/bin/env python
 
 import unittest
 import numpy as np
 import torch
-from torch.autograd import Variable
 
 import kernet.backend as K
-from kernet.models.kn import baseKN, KN, KNGreedy, KNClassifier
-from kernet.layers.kerlinear import kerLinear
-from kernet.layers.multicomponent import kerLinearEnsemble
-
+from kernet.models.ffc import _baseFFC, FFC, greedyFFC
+from kernet.layers.kn import knFC, knFCEnsemble
 
 torch.manual_seed(1234)
 np.random.seed(1234)
 
-# forward test for baseKN done, bp fit does not need testing since it is
+# forward test for _baseFFC done, bp fit does not need testing since it is
 # simply a wrapper around native pytorch bp
 
-# KNClassifier with kerLinear and kerLinearEnsemble
+# greedyFFC with knFC and knFCEnsemble
 # tested forward and initial grad calculations on the toy example,
 # does not test updated weights since updating the first layer would change
 # grad of the second
-
-# TODO: deeper models
-# TODO: maybe test updated weights?
 
 class KNTestCase(unittest.TestCase):
     def setUp(self):
@@ -39,35 +32,45 @@ class KNTestCase(unittest.TestCase):
 
         #########
         # base kn
-        self.kn = KNClassifier()
-        self.kn.add_layer(kerLinear(
+        self.kn = greedyFFC()
+        self.kn.add_layer(knFC(
             X=self.X,
-            out_dim=2,
+            n_out=2,
+            kernel='gaussian',
             sigma=3,
             bias=True
         ))
-        self.kn.add_layer(kerLinear(
+        self.kn.add_layer(knFC(
             X=self.X,
-            out_dim=2,
+            n_out=2,
+            kernel='gaussian',
             sigma=2,
             bias=True
         ))
+        
         # manually set some weights
         self.kn.layer0.weight.data = torch.Tensor([[.1, .2], [.5, .7]])
         self.kn.layer0.bias.data = torch.Tensor([0., 0.])
         self.kn.layer1.weight.data = torch.Tensor([[1.2, .3], [.2, 1.7]])
         self.kn.layer1.bias.data = torch.Tensor([0.1, 0.2])
 
+        self.kn.add_critic(self.kn.layer1.phi)
+        self.kn.add_loss(torch.nn.CosineSimilarity())
+        self.kn.add_metric(torch.nn.CosineSimilarity())
         self.kn.add_loss(torch.nn.CrossEntropyLoss())
+        self.kn.add_metric(torch.nn.CrossEntropyLoss())
 
         #########
         # ensemble
 
-        self.kn_ensemble = KNClassifier()
+        self.kn_ensemble = greedyFFC()
         self.kn_ensemble.add_layer(K.to_ensemble(self.kn.layer0, batch_size=1))
         self.kn_ensemble.add_layer(K.to_ensemble(self.kn.layer1, batch_size=1))
-
+        self.kn_ensemble.add_critic(self.kn.layer1.phi)
+        self.kn_ensemble.add_loss(torch.nn.CosineSimilarity())
+        self.kn_ensemble.add_metric(torch.nn.CosineSimilarity())
         self.kn_ensemble.add_loss(torch.nn.CrossEntropyLoss())
+        self.kn_ensemble.add_metric(torch.nn.CrossEntropyLoss())
 
         self.kn.to(device)
         self.kn_ensemble.to(device)
@@ -101,6 +104,7 @@ class KNTestCase(unittest.TestCase):
         # test forward for ensemble
         X_eval = self.kn_ensemble(self.X, update_X=True)
         X_eval_hidden = self.kn_ensemble(self.X, update_X=True, upto=0)
+        # print(X_eval.detach().to('cpu').numpy())
         self.assertTrue(np.allclose(
             X_eval.detach().to('cpu').numpy(),
             np.array([[1.5997587, 2.0986326], [1.5990349, 2.0998392]])
@@ -175,7 +179,7 @@ class KNTestCase(unittest.TestCase):
         for b in self.kn_ensemble.layer1.bias:
             if b is not None:
                 b1_grad.append(b.grad.detach().to('cpu').numpy())
-
+        # print(w0_grad)
         self.assertTrue(np.allclose(
             w0_grad,
             [np.array([[0.00113756], [0.00227511]]),

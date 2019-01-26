@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='kernet',
-    version="0.1.0",
+    version="0.1.1",
     author="Shiyu Duan",
     description=("Connectionist models powered by kernel machines."),
     license="MIT",

@@ -1,17 +1,115 @@
-# -*- coding: utf-8 -*-
-# torch 0.4.0
+#!/usr/bin/env python
 
-from __future__ import division, print_function
 
-import math as m
 import numpy as np
 import torch
-from torch.autograd import Variable
+from torch.nn.modules.loss import _Loss
 
-# TODO: tests
+# TODO tests
+# TODO documentation is behind code
 
-def gaussianKer(x, y, sigma):
+class Phi():
+    def __init__(self, kernel='gaussian', sigma=1):
+        """
+        For all x_ \in x, computes the image of x_ under the mapping:
+            f: f(x_) -> (k(x_1, x_), k(x_2, x_), ..., k(x_n, x_)),
+        where k is a kernel function and X = {x_1, x_2, ..., x_n}.
+        Currently only supports Gaussian kernel:
+        k(x, y) = exp(-||x-y||_2^2 / (2 * sigma^2)).
+        Can be used to calculate Gram matrix.
+
+        Parameters
+        ----------
+
+        x : Tensor, shape (batch_size, dim)
+
+        X : Tensor, shape (n_example, dim)
+
+        sigma : scalar
+
+        Returns
+        -------
+
+        x_img : Tensor, shape (batch_size, n_example)
+        """
+        self.kernel = kernel.lower()
+
+        assert self.kernel in ['gaussian']
+
+        if self.kernel == 'gaussian': 
+            self.sigma = sigma
+            self.phi = knPhi
+            self.a, self.c = 0, 1
+        else:
+            raise ValueError('currently only supports Gaussian kernel')
+
+    def __call__(self, x, X=None):
+
+        if len(x.shape)==1: x.unsqueeze_(0)
+        # TODO check for input with >2 dimensions: (N, n1, n2, ..., H, W)
+        # assert len(x.shape)==2
+        if len(x.shape)>2:
+            x = x.view(x.shape[0], -1)
+
+        if self.kernel == 'gaussian': 
+        # Gaussian kernel maps input x against some X: x \mapsto (k(x, x_1), k(x, x_2), ..., k(x, x_N)), where x_1, ..., x_N \in X
+            assert X is not None
+        
+            if len(X.shape)==1: X.unsqueeze_(0)
+            if len(X.shape)>2:
+                X = X.view(X.shape[0], -1)
+               
+            assert x.shape[1]==X.shape[1]                
+            return self.phi(x, X=X, sigma=self.sigma, kernel='gaussian')
+
+    def get_kmtrx(self, x, y):
+    
+        if self.kernel=='gaussian': 
+        # knPhi can be used to compute kernel matrix directly. See comment in __call__
+            return self(x, X=y)
+
+    def get_ideal_kmtrx(self, y1, y2, n_class):
+        """
+        Ideal kernel matrix.
+            k(x_i, x_j) = c if y_i == y_j;
+            k(x_i, x_j) = a if y_i != y_j.
+
+        Parameters
+        ----------
+        y1 : Tensor, shape (n1_example, 1) or (1,) (singleton)
+            Categorical labels. Values of categorical labels must be in
+            {0, 1, ..., n_class-1}.
+
+        y2 : Tensor, shape (n2_example, 1) or (1,) (singleton)
+
+        n_class : int
+
+        Returns
+        -------
+        ideal : Tensor, shape (n1_example, n2_example)
+        """
+        # assert c > a
+
+        y1_onehot, y2_onehot = \
+            one_hot(y1, n_class).to(torch.float), one_hot(y2, n_class).to(torch.float)
+        # cuda requires arguments of .mm be of float type
+        ideal = y1_onehot.mm(y2_onehot.t())
+
+        if self.a!=0:
+            a_mask = torch.full_like(ideal, self.a)
+            ideal = torch.where(ideal==0, a_mask, ideal)
+        
+        if self.c!=1:
+            c_mask = torch.full_like(ideal, self.c)
+            ideal = torch.where(ideal==1, c_mask, ideal)
+
+        return ideal
+
+
+def knPhi(x, X, sigma, kernel='gaussian'):
     """
+    kernel map: map x against X
+
     Gaussian kernel: k(x, y) = exp(-||x-y||_2^2 / (2 * sigma^2)).
     Arguments must be matrices or 1darrays. 1darrays will be converted to
     matrices. While the last dimension of its two
@@ -34,49 +132,33 @@ def gaussianKer(x, y, sigma):
         Technically not a Gram matrix when x!=y, only using this name for
         convenience.
     """
-    if len(x.shape)==1: x.unsqueeze_(0)
-    if len(y.shape)==1: y.unsqueeze_(0)
-    assert len(x.shape)==2 and len(y.shape)==2 
-    assert x.shape[1]==y.shape[1]
-    # TODO: if len(x.shape)>=2 but only two dimensions are nontrivial, should
-    # allow computation after squeezing into 2darray
-    # TODO: for ndarrays where n>2, e.g., RGB images may have shape
-    # (n_example, channels, height, width), stretch into a long vector
-    # (n_example, channels*height*width) before
-    # passing to this function. this does not make any difference to result.
+    
+    # TODO: check when len(x.shape)>=2
+    # TODO: supports only Gaussian kernel for now
 
-    gram = y.sub(x.unsqueeze(1)).pow_(2).sum(dim=-1).mul_(-1./(2*sigma**2)).exp_()
-    return gram
+    kernel = kernel.lower()
+    assert kernel in ['gaussian']
 
+    if kernel=='gaussian':
+        x = X.sub(x.unsqueeze(1)).pow_(2).sum(dim=-1).mul_(-1./(2*sigma**2)).exp_()
+        
+    return x
 
-def kerMap(x, X, sigma):
+def categorical(y):
     """
-    For all x_ \in x, computes the image of x_ under the mapping:
-        f: f(x_) -> (k(x_1, x_), k(x_2, x_), ..., k(x_n, x_)),
-    where k is a kernel function and X = {x_1, x_2, ..., x_n}.
-    Currently only supports Gaussian kernel:
-    k(x, y) = exp(-||x-y||_2^2 / (2 * sigma^2)).
-    Can be used to calculate Gram matrix.
+    Convert one-hot labels back to categorical.
+    TODO not sure if this method is robust enough
 
     Parameters
     ----------
-
-    x : Tensor, shape (batch_size, dim)
-
-    X : Tensor, shape (n_example, dim)
-
-    sigma : scalar
+    y_onehot : Tensor (n_example, n_class)
 
     Returns
     -------
-
-    x_image : Tensor, shape (batch_size, n_example)
+    y_cat: (n_example,)
     """
-    # if x or X is not a Variable, must be the buffer self.X or self.X_init,
-    # hence there is no need to require grad for them
-    x_image = gaussianKer(x, X, sigma)
-
-    return x_image
+    y_cat = torch.argmax(y, dim=1, keepdim=False)
+    return y_cat
 
 def one_hot(y, n_class):
     """
@@ -103,7 +185,7 @@ def one_hot(y, n_class):
     assert len(y.shape)==2
 
     y = y.type(torch.int64)
-    # NOTE: this is because scatter_ only supports LongTensor for its index param
+    # this is because scatter_ only supports LongTensor for its index param
 
     assert torch.max(y)+1 <= n_class
 
@@ -113,100 +195,6 @@ def one_hot(y, n_class):
     y_onehot.scatter_(1, y, ones)
 
     return y_onehot
-
-def ideal_gram(y1, y2, n_class, lower_lim=0, ignore_same_class=False):
-    """
-    Ideal Gram matrix for Gaussian kernel.
-        k(x_i, x_j) = 1 if y_i == y_j;
-        k(x_i, x_j) = 0 if y_i != y_j.
-
-    Parameters
-    ----------
-    y1 : Tensor, shape (n1_example, 1) or (1,) (singleton)
-        Categorical labels. Values of categorical labels must be in
-        {0, 1, ..., n_class-1}.
-
-    y2 : Tensor, shape (n2_example, 1) or (1,) (singleton)
-
-    n_class : int
-
-    lower_lim (optional) : float
-        Value for k(x_i, x_j) when y_i != y_j
-
-    ignore_same_class (optional) : bool
-        If set to True, returns a mask that, when multiplied to the ideal or 
-        actual kernel matrices, zeros out all entries conrresponding
-        to pairs of examples from the same class.
-
-    Returns
-    -------
-    ideal_gram : Tensor, shape (n1_example, n2_example)
-    """
-    # TODO: ideal gram for general kernels, check upper_lim > lower_lim
-    y1_onehot, y2_onehot = \
-        one_hot(y1, n_class).to(torch.float), one_hot(y2, n_class).to(torch.float)
-    # cuda requires arguments of .mm be of float type
-    ideal_gram = y1_onehot.mm(y2_onehot.transpose(dim0=0, dim1=1))
-
-    if lower_lim!=0:
-        lower_lim_mask = torch.full_like(ideal_gram, lower_lim)
-        ideal_gram = torch.where(ideal_gram==0, lower_lim_mask, ideal_gram)
-    
-    """
-    # for general kernels
-    if upper_lim!=1:
-        upper_lim_mask = torch.full_like(ideal_gram, upper_lim)
-        ideal_gram = torch.where(ideal_gram==1, upper_lim_mask, ideal_gram)
-    """
-
-    if ignore_same_class:
-        ones = torch.ones_like(ideal_gram) 
-        zeros = torch.zeros_like(ideal_gram)
-
-        zero_mask = torch.where(ideal_gram==1, zeros, ones)# TODO turn one to upper_lim for general kernels
-        return ideal_gram, zero_mask
-
-    return ideal_gram
-
-def frobenius_inner_prod(mat1, mat2):
-    """
-    Frobenius inner product of two matrices.
-    See https://en.wikipedia.org/wiki/Frobenius_inner_product.
-
-    Parameters
-    ----------
-    mat1, mat2 : Tensor, shape (m, n)
-
-    Returns
-    -------
-    f : scalar
-        Frobenius inner product of mat1 and mat2.
-    """
-    assert mat1.shape==mat2.shape
-    # assert isinstance(mat1, Variable) and isinstance(mat2, Variable))
-    f = mat1.mul(mat2).sum()
-    return f
-
-def alignment(gram1, gram2):
-    """
-    Computes the empirical alignment between two kernels (Gram matrices). See
-    http://papers.nips.cc/paper/1946-on-kernel-target-alignment.pdf.
-
-    Parameters
-    ----------
-    gram1, gram2 : Tensor, shape (m, n)
-
-    Returns
-    -------
-    alignment : scalar
-    """
-    # BUG: this loss function causes abnormal optimization behaviors, see
-    # comments in past commits
-
-    alignment = frobenius_inner_prod(gram1, gram2) /\
-        m.sqrt(frobenius_inner_prod(gram1, gram1) *
-        frobenius_inner_prod(gram2, gram2))
-    return alignment
 
 def get_batch(*sets, batch_size, shuffle=False):
     """
@@ -250,7 +238,7 @@ def get_batch(*sets, batch_size, shuffle=False):
     if shuffle: sets = rand_shuffle(sets)
 
     if batch_size >= lens[0]: batch_size = lens[0]
-    # if batch_size >= lens[0]: yield sets # BUG
+    # if batch_size >= lens[0]: yield sets # FIXME
 
     n_batch = lens[0] // batch_size
     last_batch = bool(lens[0] % batch_size)
@@ -291,8 +279,8 @@ def rand_shuffle(*sets):
     assert lens.count(lens[0])==len(lens) # make sure all sets are equal in
     # sizes of their 1st dims
 
-    # new_index = torch.randperm(lens[0]) # BUG: when fit.shuffle=True, this
-    # creates different random indices for kerLinear and kerLinearEnsemble,
+    # new_index = torch.randperm(lens[0]) # FIXME: when fit.shuffle=True, this
+    # creates different random indices for knFC and knFCEnsemble,
     # which leads to different results
     new_index = np.random.permutation(lens[0])
 
@@ -301,36 +289,38 @@ def rand_shuffle(*sets):
     return sets
 
 def to_ensemble(layer, batch_size):
-    # do not do the import in the beginning, will cause circular
-    # inference
-    from kernet.layers.kerlinear import kerLinear
-    from kernet.layers.multicomponent import kerLinearEnsemble
     """
     Break a layer object into an equivalent ensemble layer object.
 
     Parameters
     ----------
-    layer : kerLinear
-        Supports kerLinear only.
+    layer : knFC
+        Supports knFC only.
 
     Returns
     -------
-    ensemble_layer : kerLinearEnsemble
+    ensemble_layer : knFCEnsemble
     """
-    assert isinstance(layer, kerLinear)
-    X = layer.X
-    ensemble_layer = kerLinearEnsemble()
-    for i, x in enumerate(get_batch(X, batch_size=batch_size)):
+    from kernet.layers.kn import knFC, knFCEnsemble
 
-        use_bias = True if i==0 else False
-        component = kerLinear(
+    # FIXME throws an error when excuting kn.py, probably some import problem
+    # FIXME do not do the import in the beginning, will cause circular
+    # inference
+    assert isinstance(layer, knFC)
+
+    X = layer.X
+    ensemble_layer = knFCEnsemble()
+    for i, x in enumerate(get_batch(X, batch_size=batch_size)):
+        use_bias = True if layer.bias is not None and i==0 else False
+        component = knFC(
             X=x[0],
-            out_dim=layer.out_dim,
-            sigma=layer.sigma,
+            n_out=layer.n_out,
+            kernel=layer.kernel,
+            sigma=layer.phi.sigma, # TODO only support Gaussian kernel
             bias=use_bias
             )
 
-        # BUG: can it be dangerous to modify params in place?
+        # FIXME: can it be dangerous to modify params in place?
         component.weight.data = \
                 layer.weight[:,i*batch_size:(i+1)*batch_size].clone()
 
@@ -341,10 +331,10 @@ def to_ensemble(layer, batch_size):
         # original data), this is to prevent the returned ensemble instance share
         # underlying weights with the given layer instance
 
-        ensemble_layer.add(component)
+        ensemble_layer.add_comp(component)
     return ensemble_layer
 
-class L0Loss:
+class L0Loss(_Loss):
     def __call__(self, y_pred, y):
         """
         Compute prediction error rate.
@@ -366,13 +356,13 @@ class L0Loss:
         assert y_pred.shape==y.shape
 
         # y_pred = y_pred.type_as(y)
-        # err = (y_pred!=y).sum().type(torch.FloatTensor).div_(float(y.shape[0])) # BUG
+        # err = (y_pred!=y).sum().type(torch.FloatTensor).div_(float(y.shape[0])) # FIXME throws an error when directly computing using torch objects
 
         y_pred = y_pred.to('cpu')
         y = y.to('cpu')
 
         err = float(sum(y_pred.numpy()!=y.numpy())) / y.shape[0]
-        # BUG: for numpy objects converted from torch.tensor, still can access
+        # FIXME: for numpy objects converted from torch.tensor, still can access
         # x.data but x.data is some memory location
         return err
 
@@ -439,16 +429,4 @@ def get_subset(X, Y, n, shuffle=True):
 
 
 if __name__=='__main__':
-    x = torch.FloatTensor([[1, 2]])
-    X = torch.FloatTensor([[1, 2], [3, 4], [5, 6]])
-    # y = kerMap(x, X, sigma=1)
-    y = torch.FloatTensor([[1], [3], [2]])
-    y_ = torch.FloatTensor([[2], [1]])
-    gram1, zero_mask = ideal_gram(y, y_, 4, ignore_same_class=True)
-    print(gram1, '\n', zero_mask, '\n', (gram1+1)*zero_mask)
-    y = torch.FloatTensor([[3], [3], [3]])
-    y_ = torch.FloatTensor([[3], [3]])
-    gram2 = ideal_gram(y, y_, 4)
-    print(gram2)
-    # print(frobenius_inner_prod(gram1, gram2))
-    # print(alignment(gram1, gram2))
+    pass
