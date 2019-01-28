@@ -114,6 +114,27 @@ wrapper = feedforward()
 net = LeNet5(in_channels=in_channels, padding=padding)
 
 wrapper.add_layer(net)
-wrapper.
+
+# add optimizer, loss, and metric (for validation)
+wrapper.add_optimizer(
+    torch.optim.Adam(params=wrapper.parameters(), lr=lr, weight_decay=weight_decay)
+    )
+wrapper.add_loss(torch.nn.CrossEntropyLoss())
+wrapper.add_metric(K.L0Loss()) # classification error
+
+# start training
+wrapper.fit(
+    n_epoch=n_epoch,
+    batch_size=batch_size,
+    shuffle=shuffle,
+    X=x_train,
+    Y=y_train,
+    X_val=x_validation,
+    Y_val=y_validation,
+    val_window=val_window, # interval between two validations
+    )
+
+# test the trained model, print classification error
+wrapper.evaluate(X_test=x_test, Y_test=y_test, batch_size=batch_size, metric_fn=K.L0Loss())
 ```
 
