@@ -1,6 +1,6 @@
 ﻿# kerNET
 
-**(Jan. 24, 2019) This repo is under active development. I am trying to make it easier to use and more memory efficient. Feel free to open an issue if you find something that doesn't work as expected. Also, I should remind you that some documentations are behind the actual code. I'm still working on that.**
+**(Jan. 27, 2019) This repo is under active development. I am trying to make it easier to use and more memory efficient. Feel free to open an issue if you find something that doesn't work as expected. Also, I should remind you that some documentations are behind the actual code. I'm still working on that.**
 
 kerNET is a [Keras](https://keras.io/)-like wrapper for PyTorch that makes it easier to build kernel networks and a layer-wise learning algorithm proposed in this paper (TDOO: url to be added).
 
@@ -25,7 +25,8 @@ import torch
 import kernet.backend as K
 from kernet.models.feedforward import feedforward
 
-# suppose we already have x_train, y_train, x_validation, y_validation and n_class
+# suppose we already have x_train, y_train, x_validation, y_validation, x_test, 
+# y_test and n_class (the number of classes)
 # without loss of generality, assume x_train and x_validation have shape [n_example, n_feature].
 
 # building an array of 'n_class' RBF networks for classification with 'n_class' classes
