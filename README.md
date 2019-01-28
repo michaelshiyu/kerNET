@@ -24,6 +24,7 @@ import torch
 
 import kernet.backend as K
 from kernet.models.feedforward import feedforward
+from kernet.layers.kernelized_layer import kFullyConnected
 
 # suppose we already have x_train, y_train, x_validation, y_validation, x_test, 
 # y_test and n_class (the number of classes)
