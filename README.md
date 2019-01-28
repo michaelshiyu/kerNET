@@ -56,16 +56,16 @@ net.add_optimizer(
     torch.optim.Adam(params=net.parameters(), lr=lr, weight_decay=weight_decay)
     )
 net.add_loss(torch.nn.CrossEntropyLoss())
-net.add_metric(K.L0Loss()) # classification error
+net.add_metric(K.L0Loss()) # classification error (for validation)
 
 # start training
 net.fit(
     n_epoch=n_epoch,
     batch_size=batch_size,
-    shuffle=shuffle,
+    shuffle=shuffle, # shuffle data for each epoch
     X=x_train,
     Y=y_train,
-    X_val=x_validation,
+    X_val=x_validation, # if you don't want to validate, just ignore 'X_val' and 'Y_val'
     Y_val=y_validation,
     val_window=val_window, # interval between two validations
     )
@@ -89,8 +89,6 @@ from kernet.models.feedforward import feedforward
 
 # build the classic LeNet-5
 class LeNet5(torch.nn.Module):
-    """
-    (N, in_channels, 32, 32) in, (N, 120) out"""
 
     def __init__(self, in_channels, padding):
         super().__init__()
@@ -120,16 +118,16 @@ wrapper.add_optimizer(
     torch.optim.Adam(params=wrapper.parameters(), lr=lr, weight_decay=weight_decay)
     )
 wrapper.add_loss(torch.nn.CrossEntropyLoss())
-wrapper.add_metric(K.L0Loss()) # classification error
+wrapper.add_metric(K.L0Loss()) # classification error (for validation)
 
 # start training
 wrapper.fit(
     n_epoch=n_epoch,
     batch_size=batch_size,
-    shuffle=shuffle,
+    shuffle=shuffle, # shuffle data for each epoch
     X=x_train,
     Y=y_train,
-    X_val=x_validation,
+    X_val=x_validation, # if you don't want to validate, just ignore 'X_val' and 'Y_val'
     Y_val=y_validation,
     val_window=val_window, # interval between two validations
     )
