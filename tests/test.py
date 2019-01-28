@@ -5,16 +5,16 @@ import numpy as np
 import torch
 
 import kernet.backend as K
-from kernet.models.ffc import _baseFFC, FFC, greedyFFC
-from kernet.layers.kn import knFC, knFCEnsemble
+from kernet.models.feedforward import _baseFeedforward, feedforward, greedyFeedforward
+from kernet.layers.kernelized_layer import kFullyConnected, kFullyConnectedEnsemble
 
 torch.manual_seed(1234)
 np.random.seed(1234)
 
-# forward test for _baseFFC done, bp fit does not need testing since it is
+# forward test for _baseFeedforward done, bp fit does not need testing since it is
 # simply a wrapper around native pytorch bp
 
-# greedyFFC with knFC and knFCEnsemble
+# greedyFeedforward with kFullyConnected and kFullyConnectedEnsemble
 # tested forward and initial grad calculations on the toy example,
 # does not test updated weights since updating the first layer would change
 # grad of the second
@@ -32,15 +32,15 @@ class KNTestCase(unittest.TestCase):
 
         #########
         # base kn
-        self.kn = greedyFFC()
-        self.kn.add_layer(knFC(
+        self.kn = greedyFeedforward()
+        self.kn.add_layer(kFullyConnected(
             X=self.X,
             n_out=2,
             kernel='gaussian',
             sigma=3,
             bias=True
         ))
-        self.kn.add_layer(knFC(
+        self.kn.add_layer(kFullyConnected(
             X=self.X,
             n_out=2,
             kernel='gaussian',
@@ -63,7 +63,7 @@ class KNTestCase(unittest.TestCase):
         #########
         # ensemble
 
-        self.kn_ensemble = greedyFFC()
+        self.kn_ensemble = greedyFeedforward()
         self.kn_ensemble.add_layer(K.to_ensemble(self.kn.layer0, batch_size=1))
         self.kn_ensemble.add_layer(K.to_ensemble(self.kn.layer1, batch_size=1))
         self.kn_ensemble.add_critic(self.kn.layer1.phi)

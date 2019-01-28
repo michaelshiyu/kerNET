@@ -1,1 +1,1 @@
-from .kn import *
+from .kernelized_layer import *

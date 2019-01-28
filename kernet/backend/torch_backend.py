@@ -280,7 +280,7 @@ def rand_shuffle(*sets):
     # sizes of their 1st dims
 
     # new_index = torch.randperm(lens[0]) # FIXME: when fit.shuffle=True, this
-    # creates different random indices for knFC and knFCEnsemble,
+    # creates different random indices for kFullyConnected and kFullyConnectedEnsemble,
     # which leads to different results
     new_index = np.random.permutation(lens[0])
 
@@ -294,25 +294,25 @@ def to_ensemble(layer, batch_size):
 
     Parameters
     ----------
-    layer : knFC
-        Supports knFC only.
+    layer : kFullyConnected
+        Supports kFullyConnected only.
 
     Returns
     -------
-    ensemble_layer : knFCEnsemble
+    ensemble_layer : kFullyConnectedEnsemble
     """
-    from kernet.layers.kn import knFC, knFCEnsemble
+    from kernet.layers.kernelized_layer import kFullyConnected, kFullyConnectedEnsemble
 
     # FIXME throws an error when excuting kn.py, probably some import problem
     # FIXME do not do the import in the beginning, will cause circular
     # inference
-    assert isinstance(layer, knFC)
+    assert isinstance(layer, kFullyConnected)
 
     X = layer.X
-    ensemble_layer = knFCEnsemble()
+    ensemble_layer = kFullyConnectedEnsemble()
     for i, x in enumerate(get_batch(X, batch_size=batch_size)):
         use_bias = True if layer.bias is not None and i==0 else False
-        component = knFC(
+        component = kFullyConnected(
             X=x[0],
             n_out=layer.n_out,
             kernel=layer.kernel,

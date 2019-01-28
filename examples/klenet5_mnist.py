@@ -10,8 +10,8 @@ import torch.nn.functional as F
 import torchvision
 
 import kernet.backend as K
-from kernet.models.ffc import greedyFFC
-from kernet.layers.kn import knFC, knFCEnsemble
+from kernet.models.feedforward import greedyFeedforward
+from kernet.layers.kernelized_layer import kFullyConnected, kFullyConnectedEnsemble
 
 """Kernelize the output layer of LeNet-5 and train it layer-wise. This setting should give an error rate of about 0.8%."""
 
@@ -118,7 +118,7 @@ if __name__=='__main__':
     ensemble, component_size, batch_size, shuffle, accumulate_grad, hidden_cost \
     in itertools.product(*params):
 
-        net = greedyFFC()
+        net = greedyFeedforward()
 
         # randomly get centers for the kernelized layer
         x_train2, y_train2 = K.get_subset(
@@ -131,7 +131,7 @@ if __name__=='__main__':
         layer1 = LeNet5_conv(1, padding=2) 
 
         # a kernelized, fully-connected layer. X is the set of centers, n_out is the number of kernel machines on this layer
-        layer2 = knFC(X=x_train2, n_out=n_class, kernel='gaussian', sigma=sigma2, bias=True)
+        layer2 = kFullyConnected(X=x_train2, n_out=n_class, kernel='gaussian', sigma=sigma2, bias=True)
 
         if not ensemble:
             net.add_layer(layer1)

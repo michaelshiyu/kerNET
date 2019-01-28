@@ -1,1 +1,1 @@
-from .ffc import *
+from .feedforward import *

@@ -2,7 +2,7 @@
 
 **(Jan. 24, 2019) This repo is under active development. I am trying to make it easier to use and more memory efficient. Feel free to open an issue if you find something that doesn't work as expected. Also, I should remind you that some documentations are behind the actual code. I'm still working on that.**
 
-kerNET is a [Keras](https://keras.io/)-like API that makes it easier to build kernel networks and a layer-wise learning algorithm proposed in this paper (TDOO: url to be added). It is based on [PyTorch](http://pytorch.org/) in order to make GPU acceleration possible (just like neural networks, these models require operations on large matrices).
+kerNET is a [Keras](https://keras.io/)-like wrapper for PyTorch that makes it easier to build kernel networks and a layer-wise learning algorithm proposed in this paper (TDOO: url to be added).
 
 Dependencies:
 - Python 3.6
@@ -19,7 +19,10 @@ Some simple tutorials are given below:
 
 ## Build an RBF network
 
+```python
 
+net = FFC()
+```
 
 ## Build a kernel Multilayer Perceptron proposed in this paper (TDOO: url to be added)
 
