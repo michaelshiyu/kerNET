@@ -45,9 +45,10 @@ net.add_layer(kFullyConnected(X=x_train, n_out=n_class, kernel='gaussian', sigma
 # on GPU. In that case, do
 # layer = kFullyConnected(X=x_train, n_out=n_class, kernel='gaussian', sigma=1)
 # net.add_layer(layer.to_ensemble(100))
-# what the above two lines do is that they break 'X' into a few chunks of size 100
+# what the above two lines do is that they break 'X' into a few chunks of 100 examples (the last chunk may be smaller)
 # and evaluate them in a sequential fashion without having to put them on 
-# your GPU all together. This setting does not affect the output of the 
+# your GPU all together. Creating more chunks will reduce memory use but make the program slower since GPU likes 
+# to compute things in parallel but not sequentially. This setting does not affect the output of the 
 # network, only the way this output was computed.
 
 # add optimizer, loss, and metric (for validation)
@@ -66,11 +67,11 @@ net.fit(
     Y=y_train,
     X_val=x_validation,
     Y_val=y_validation,
-    val_window=5, # interval between two validations
+    val_window=val_window, # interval between two validations
     )
 
 # test the trained model, print classification error
-net.evaluate(X_test=x_test, Y_test=y_test, batch_size=100, metric_fn=K.L0Loss())
+net.evaluate(X_test=x_test, Y_test=y_test, batch_size=batch_size, metric_fn=K.L0Loss())
 
 ```
 
