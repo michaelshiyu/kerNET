@@ -80,20 +80,14 @@ net.evaluate(X_test=x_test, Y_test=y_test, batch_size=batch_size, metric_fn=K.L0
 Below we demonstrate how to build a fully-kernelized MLP and train it with backpropagation using kerNET.
 
 ```python
-import torch
-
-import kernet.backend as K
-from kernet.models.feedforward import feedforward
-from kernet.layers.kernelized_layer import kFullyConnected
-
 # say we would like to build a three-layer, fully-kernelized MLP
 # all you need to change in the above tutorial is to add two more layers! The first layer you add would be the input layer and so on
 # everything from the above tutorial still applies, such as the more memory-efficient ensemble mode
   
 net = feedforward() 
 
-net.add_layer(kFullyConnected(X=x_train, n_out=hidden_dim1, kernel='gaussian', sigma=3))
-net.add_layer(kFullyConnected(X=x_train, n_out=hidden_dim2, kernel='gaussian', sigma=2))
+net.add_layer(kFullyConnected(X=x_train, n_out=hidden_dim0, kernel='gaussian', sigma=3))
+net.add_layer(kFullyConnected(X=x_train, n_out=hidden_dim1, kernel='gaussian', sigma=2))
 net.add_layer(kFullyConnected(X=x_train, n_out=n_class, kernel='gaussian', sigma=1))
 
 # note that you can later access these layers by calling on them, for example, the input layer can be accessed as 
@@ -104,7 +98,7 @@ input_layer = net.layer0 # the layers are zero-indexed
 
 ## Build a neural-kernel hybrid network
 
-Now we demonstrate how to only kernelize a part of a given NN. We use LeNet-5 as an example and kernelize the output layer.
+Now we demonstrate how to only kernelize a part of a given NN. We use [LeNet-5](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=726791) as an example and kernelize the output layer.
 
 ```python
 class LeNet5_minus_output_layer(torch.nn.Module):
@@ -140,6 +134,8 @@ The main advantage of kernelizing a feedforward NN is that there is a way to tra
 
 To train the earlier kernelized LeNet-5 layer-wise, do
 ```python
+from kernet.models.feedforward import greedyFeedforward
+
 net = greedyFeedforward() # instantiate this class if you want to train your network layer-wise
 
 ... # add the layers as before
@@ -149,7 +145,7 @@ net.add_optimizer(torch.optim.Adam(params=net.parameters(), lr=lr0, weight_decay
 net.add_optimizer(torch.optim.Adam(params=net.parameters(), lr=lr1, weight_decay=weight_decay1))
 
 # loss function to train layer0 and metric function for validation
-# below gives the alignment loss in the paper. You can substitute CosineSimilarity() by MSELoss(size_average=True, reduce=True) or L1Loss(size_average=True, reduce=True) to use the L^2 or L^1 loss in the paper, respectively
+# below gives the alignment loss in the paper. You can substitute CosineSimilarity() with MSELoss(size_average=True, reduce=True) or L1Loss(size_average=True, reduce=True) to use the L^2 or L^1 loss in the paper, respectively
 net.add_loss(torch.nn.CosineSimilarity())
 net.add_metric(torch.nn.CosineSimilarity())
 
@@ -176,6 +172,8 @@ net.fit(
 
 net.evaluate(X_test=x_test, Y_test=y_test, batch_size=batch_size, metric_fn=K.L0Loss())
 ```
+
+In examples, you will find [a working example](https://github.com/michaelshiyu/kerNET/blob/master/examples/klenet5_mnist.py) of this kernelized LeNet-5 trained and tested on [MNIST](http://yann.lecun.com/exdb/mnist/). [Another working example](https://github.com/michaelshiyu/kerNET/blob/master/examples/kmlp_mnist.py) of the earlier kernelized three-layer MLP on MNIST is also provided. The LeNet-5 example should take no more than a few minutes on a decent GPU. The MLP example would take longer.
 
 ## Wrap kerNET around any PyTorch object and use the helper functions to streamline your code
 ```python
