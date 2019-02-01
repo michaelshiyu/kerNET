@@ -239,27 +239,30 @@ class _baseFeedforward(torch.nn.Module):
                         # if metric is classification error rate, need to make 
                         # prediction first
                         _, Y_pred = torch.max(X_eval, dim=1)
+                        loss = metric_fn(y_pred=Y_pred, y=Y_test)
 
                         print('{}: {:.3f}'.format(
                             'L0Loss (%)',
-                            metric_fn(y_pred=Y_pred, y=Y_test)*100
+                            loss.item()*100
                             ))
 
                         if write_to:
                             print('{}: {:.3f}'.format(
                                 'L0Loss (%)',
-                                metric_fn(y_pred=Y_pred, y=Y_test)*100
+                                loss.item()*100
                                 ), file=open(write_to,'a'), end=end)
                 
                     else:
+                        loss = metric_fn(X_eval, Y_test)
+
                         print('{}: {:.3f}'.format(
                             metric_fn.__class__.__name__,
-                            metric_fn(X_eval, Y_test).item()
+                            loss.item()
                             ))
                         if write_to:
                             print('{}: {:.3f}'.format(
                                 metric_fn.__class__.__name__,
-                                metric_fn(X_eval, Y_test).item()
+                                loss.item()
                                 ), file=open(write_to,'a'), end=end)
                 else:
                     # TODO may take a lot of memory even under torch.no_grad=True?
