@@ -175,6 +175,14 @@ net.evaluate(X_test=x_test, Y_test=y_test, batch_size=batch_size, metric_fn=K.L0
 
 In examples, you will find [a working example](https://github.com/michaelshiyu/kerNET/blob/master/examples/klenet5_mnist.py) of this kernelized LeNet-5 trained and tested on [MNIST](http://yann.lecun.com/exdb/mnist/). [Another working example](https://github.com/michaelshiyu/kerNET/blob/master/examples/kmlp_mnist.py) of the earlier kernelized three-layer MLP on MNIST is also provided. The LeNet-5 example should take no more than a few minutes on a decent GPU. The MLP example would take longer.
 
+To get deterministic results across runs, you should set
+```python
+torch.manual_seed(seed)
+np.random.seed(seed)
+torch.cuda.manual_seed(seed)
+torch.backends.cudnn.deterministic=True
+```
+
 ## Wrap kerNET around any PyTorch object and use the helper functions to streamline your code
 ```python
 import torch
