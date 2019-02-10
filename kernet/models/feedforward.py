@@ -243,13 +243,13 @@ class _baseFeedforward(torch.nn.Module):
 
                         print('{}: {:.3f}'.format(
                             'L0Loss (%)',
-                            loss.item()*100
+                            loss*100 # loss is a numpy object for L0Loss
                             ))
 
                         if write_to:
                             print('{}: {:.3f}'.format(
                                 'L0Loss (%)',
-                                loss.item()*100
+                                loss*100 # loss is a numpy object for L0Loss
                                 ), file=open(write_to,'a'), end=end)
                 
                     else:
