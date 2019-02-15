@@ -2,7 +2,7 @@
 
 **(Jan. 27, 2019) This repo is under active development. I am trying to make it easier to use and more memory efficient. Feel free to open an issue if you find something that doesn't work as expected. Also, I should remind you that some documentations are behind the actual code. I'm still working on that.**
 
-kerNET is a [Keras](https://keras.io/)-like wrapper for PyTorch that makes it easier to build kernel networks and a layer-wise learning algorithm proposed in [this paper](https://arxiv.org/abs/1802.03774).
+kerNET is a [Keras](https://keras.io/)-like wrapper for PyTorch that makes it easier to build kernel networks and a layer-wise learning algorithm proposed in [this paper](https://github.com/michaelshiyu/kerNET/blob/master/kernet/paper/v3.pdf).
 
 Dependencies:
 - Python 3.6
@@ -73,9 +73,9 @@ net.evaluate(X_test=x_test, Y_test=y_test, batch_size=batch_size, metric_fn=K.L0
 
 ```
 
-## Build a kernel Multilayer Perceptron proposed in [this paper](https://arxiv.org/abs/1802.03774)
+## Build a kernel Multilayer Perceptron proposed in [this paper](https://github.com/michaelshiyu/kerNET/blob/master/kernet/paper/v3.pdf)
 
-[This paper](https://arxiv.org/abs/1802.03774) proposed a framework to "kernelize" any neural network (NN), i.e., substitute one or multiple nodes f(x) = \sigma(w^T x), where \sigma is a nonlinear activation function such as hyperbolic tangent, with kernel machines f(x) = <w, \phi(x)>, where \phi is a nonlinear mapping into an [RKHS](https://en.wikipedia.org/wiki/Reproducing_kernel_Hilbert_space). For kernel machines, the w may not be accessible and is usually approximated using the [representer theorem](https://en.wikipedia.org/wiki/Representer_theorem). Kernelizing a single neuron would give the classic RBF network with one output node. And for an NN, one may freely choose the degree of kernelization: from one node only, to the entire network.
+[This paper](https://github.com/michaelshiyu/kerNET/blob/master/kernet/paper/v3.pdf) proposed a framework to "kernelize" any neural network (NN), i.e., substitute one or multiple nodes f(x) = \sigma(w^T x), where \sigma is a nonlinear activation function such as hyperbolic tangent, with kernel machines f(x) = <w, \phi(x)>, where \phi is a nonlinear mapping into an [RKHS](https://en.wikipedia.org/wiki/Reproducing_kernel_Hilbert_space). For kernel machines, the w may not be accessible and is usually approximated using the [representer theorem](https://en.wikipedia.org/wiki/Representer_theorem). Kernelizing a single neuron would give the classic RBF network with one output node. And for an NN, one may freely choose the degree of kernelization: from one node only, to the entire network.
 
 Below we demonstrate how to build a fully-kernelized MLP and train it with backpropagation using kerNET.
 
