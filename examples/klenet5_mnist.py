@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import itertools
+import itertools, os
 
 import numpy as np
 import torch
@@ -93,8 +93,8 @@ if __name__=='__main__':
 
     params = [
         # model hyperparameters
-        [35], # epo1, the number of epochs to train for the first hidden layer 
-        [10], # epo2
+        [5], # epo1, the number of epochs to train for the first hidden layer 
+        [5], # epo2
         [5e-4], # lr1
         [5e-4], # lr2
         [1e-6], # w_decay1,
@@ -182,8 +182,39 @@ if __name__=='__main__':
             accumulate_grad=accumulate_grad,
             )
 
+        if not os.path.isdir('checkpoint'):
+            os.mkdir('checkpoint')
+        torch.save(net.state_dict(), './checkpoint/klenet5_mnist.t7')
+
         #########
         # test
         #########
 
+        net.evaluate(X_test=x_test, Y_test=y_test, batch_size=1000, metric_fn=K.L0Loss())
+
+        #########
+        # resume from checkpoint
+        #########
+
+        # note that pausing and resuming training in a layer-wise setting is somewhat
+        # more delicate than they are in backpropagation. For example, consider training 
+        # a two-layer model layer-wise, two consecutive training sessions with 
+        # epochs (10, 10) and (5, 5) result in a model that is different from that
+        # obtained with training for (15, 15)
+
+        # also note that if you would like to instantiate a network model from scratch,
+        # you should train it for at least 1 epoch before calling net.load_state_dict
+        # otherwise torch would most likely throw a size mismatch error because 
+        # the tensor of centers in your new model, i.e., yourmodel.X, is not of 
+        # the same size as that in the state_dict you're loading
+        net.load_state_dict(torch.load('./checkpoint/klenet5_mnist.t7'))
+        net.fit(
+            n_epoch=(epo1, epo2),
+            batch_size=batch_size,
+            shuffle=shuffle,
+            X=x_train,
+            Y=y_train,
+            n_class=n_class,
+            accumulate_grad=accumulate_grad,
+            )
         net.evaluate(X_test=x_test, Y_test=y_test, batch_size=1000, metric_fn=K.L0Loss())

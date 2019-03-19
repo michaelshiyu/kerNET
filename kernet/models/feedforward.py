@@ -438,7 +438,6 @@ class feedforward(_baseFeedforward):
 
 class _greedyFeedforward(_baseFeedforward):
     """
-    TODO change name to _greedyFeedforward
     Base class for a greedy KN classifier. Do not use.
     
     The upper kernelized, fully-connected layers can be trained layer-wise.
