@@ -93,8 +93,8 @@ if __name__=='__main__':
 
     params = [
         # model hyperparameters
-        [5], # epo1, the number of epochs to train for the first hidden layer 
-        [5], # epo2
+        [35], # epo1, the number of epochs to train for the first hidden layer 
+        [15], # epo2
         [5e-4], # lr1
         [5e-4], # lr2
         [1e-6], # w_decay1,
