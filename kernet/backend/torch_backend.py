@@ -335,6 +335,10 @@ def to_ensemble(layer, batch_size):
     return ensemble_layer
 
 class L0Loss(_Loss):
+    def __init__(self, reduction='mean'):
+        super().__init__()
+        self.reduction = reduction
+
     def __call__(self, y_pred, y):
         """
         Compute prediction error rate.
@@ -355,16 +359,15 @@ class L0Loss(_Loss):
         """
         assert y_pred.shape==y.shape
 
-        # y_pred = y_pred.type_as(y)
-        # err = (y_pred!=y).sum().type(torch.FloatTensor).div_(float(y.shape[0])) # FIXME throws an error when directly computing using torch objects
+        correct = y_pred.eq(y).sum()
+        wrong = y.size(0) - correct
+        if self.reduction=='sum':
+            return wrong
+        elif self.reduction=='mean':
+            return wrong.to(torch.float).div(y.size(0))
 
-        y_pred = y_pred.to('cpu')
-        y = y.to('cpu')
-
-        err = float(sum(y_pred.numpy()!=y.numpy())) / y.shape[0]
-        # FIXME: for numpy objects converted from torch.tensor, still can access
-        # x.data but x.data is some memory location
-        return err
+        else:
+            raise ValueError('reduction in L0Loss must be either "sum" or "mean", got {} instead'.format(reduction))
 
 def get_subset(X, Y, n, shuffle=True):
     """

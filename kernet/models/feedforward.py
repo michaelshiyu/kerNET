@@ -14,7 +14,6 @@ from kernet.layers.kernelized_layer import _kernelizedLayer, kFullyConnected, kF
 
 class _baseFeedforward(torch.nn.Module):
     """
-    # TODO change name to _baseFeedforward
     Base feedforward. Do not use.
     """
     def __init__(self):
@@ -145,10 +144,18 @@ class _baseFeedforward(torch.nn.Module):
 
         return y
 
-    def evaluate(self, X_test, Y_test=None, metric_fn=None, critic=None, 
+    def get_repr(self, data_loader, layer=None):
+        '''
+        forward method with support for PyTorch's data_loader.
+        '''
+        pass
+
+    def evaluate(self, test_loader, metric_fn=None, critic=None, 
         hidden_val=False, n_class=None, layer=None, batch_size=None, 
         write_to=None, end=None):
         """
+        Similar to forward. But never updates X. For inference.
+
         Feed in test data and get output at a specified layer. This basically
         does the same thing as 'forward'. But 'evaluate' should be favored over 
         'forward' for test or validation since evaluate uses minimal memory and 
@@ -203,8 +210,6 @@ class _baseFeedforward(torch.nn.Module):
             Hidden representation of X_test at the given layer.
         """
         with torch.no_grad():
-            if not batch_size or batch_size > X_test.shape[0]: 
-                batch_size = X_test.shape[0]
 
             if layer is None: layer=self._layer_counter-1
             else: assert 0<=layer<=self._layer_counter-1
@@ -213,84 +218,68 @@ class _baseFeedforward(torch.nn.Module):
             # layer points to the actual layer instance, whereas layer_index
             # refers to its index, which is an integer
 
-            i = 0 # batch index
+            assert metric_fn is not None
 
-            for x_test in K.get_batch(X_test, batch_size=batch_size):
+            # TODO require metric_fn do not average over minibatch
+
+            n_test = 0
+            total_loss = 0
+            for x_test, y_test in test_loader:
+                x_test, y_test = x_test.to(next(self.parameters()).device),\
+                y_test.to(next(self.parameters()).device) # FIXME model sharding
+
                 x_eval = self(
-                    x_test[0],
+                    x_test,
                     upto=layer_index,
                     update_X=False
                     )
-                if i==0:
-                    X_eval = x_eval
-                else:
-                    X_eval = torch.cat((X_eval, x_eval)) 
-                    # concatenate output from each batch
-                i += 1
 
-            if Y_test is not None:
-                assert len(Y_test.shape) <= 2
-                assert X_test.shape[0]==Y_test.shape[0]
-                assert metric_fn is not None
-                # compute and print the metric if the entire model has been 
-                # evaluated, only evaluate when Y_test is provided
                 if hidden_val==False:
+                    # if not trying to get loss value from a hidden layer
                     if isinstance(metric_fn, K.L0Loss):
                         # if metric is classification error rate, need to make 
                         # prediction first
-                        _, Y_pred = torch.max(X_eval, dim=1)
-                        loss = metric_fn(y_pred=Y_pred, y=Y_test)
-
-                        print('{}: {:.3f}'.format(
-                            'L0Loss (%)',
-                            loss*100 # loss is a numpy object for L0Loss
-                            ))
-
-                        if write_to:
-                            print('{}: {:.3f}'.format(
-                                'L0Loss (%)',
-                                loss*100 # loss is a numpy object for L0Loss
-                                ), file=open(write_to,'a'), end=end)
-                
+                        _, y_pred = torch.max(x_eval, dim=1)
+                        batch_loss = metric_fn(y_pred=y_pred, y=y_test)
+                        
                     else:
-                        loss = metric_fn(X_eval, Y_test)
-
-                        print('{}: {:.3f}'.format(
-                            metric_fn.__class__.__name__,
-                            loss.item()
-                            ))
-                        if write_to:
-                            print('{}: {:.3f}'.format(
-                                metric_fn.__class__.__name__,
-                                loss.item()
-                                ), file=open(write_to,'a'), end=end)
-                else:
+                        batch_loss = metric_fn(x_eval, y_test)
+                    
+                    n_test += x_test.size(0)
+                    total_loss += batch_loss.item()
+                else: # TODO test
                     # TODO may take a lot of memory even under torch.no_grad=True?
                     assert not isinstance(metric_fn, K.L0Loss) 
                     assert critic is not None and n_class is not None
                     # hidden layer does not validate w.r.t. L0Loss
-                    if len(Y_test.shape)==1: Y_test=Y_test.view(-1, 1)
-                    ideal_kmtrx = critic.get_ideal_kmtrx(Y_test, Y_test, n_class=n_class) # val.n_class must be the same as train.n_class
+
+                    if len(y_test.shape)==1: y_test=y_test.view(-1, 1)
+
+                    ideal_kmtrx = critic.get_ideal_kmtrx(y_test, y_test, n_class=n_class) # val.n_class must be the same as train.n_class
 
                     # convert to float type, required by CosineSimilarity
                     ideal_kmtrx=ideal_kmtrx.to(torch.float)
 
                     # calculate the actual kernel matrix of this layer
-                    kmtrx = critic.get_kmtrx(X_eval, X_eval)
+                    kmtrx = critic.get_kmtrx(x_eval, x_eval)
                     
+                    batch_loss = metric_fn(kmtrx.view(1, -1), ideal_kmtrx.view(1, -1))
+
+                    n_test += x_test.size(0)
+                    total_loss += batch_loss.item()
+
+            loss = total_loss / n_test
+            print('{}: {:.3f}'.format(
+                metric_fn.__class__.__name__,
+                loss
+            ))
+            if write_to:
+                print('{}: {:.3f}'.format(
+                    metric_fn.__class__.__name__,
+                    loss
+                ), file=open(write_to,'a'), end=end)
+            return loss
                     
-                    metric = metric_fn(kmtrx.view(1, -1), ideal_kmtrx.view(1, -1))
-                    print('{}: {:.3f}'.format(
-                        metric_fn.__class__.__name__,
-                        metric.item()
-                    ))
-                    if write_to:
-                        print('{}: {:.3f}'.format(
-                            metric_fn.__class__.__name__,
-                            metric.item()
-                        ), file=open(write_to,'a'), end=end)
-                    
-            return X_eval
 
     def fit(self):
         raise NotImplementedError('must be implemented by subclass')
@@ -314,12 +303,13 @@ class feedforward(_baseFeedforward):
     def fit(
         self,
         n_epoch,
-        X, Y,
-        batch_size=None,
-        shuffle=False,
+        train_loader,
+        # batch_size=None,
+        # shuffle=False,
         accumulate_grad=True,
-        X_val=None,
-        Y_val=None,
+        # X_val=None,
+        # Y_val=None,
+        val_loader=None,
         val_window=30,
         verbose=True,
         write_to=None,
@@ -366,55 +356,47 @@ class feedforward(_baseFeedforward):
             and validation sets are provided, only print value of the validation 
             metric at each validation.
         """
+        '''
         assert X.shape[0]==Y.shape[0]
 
         if not batch_size or batch_size > X.shape[0]: 
             batch_size = X.shape[0]
         n_batch = X.shape[0] // batch_size
         last_batch = bool(X.shape[0] % batch_size)
+        '''
 
         # unfreeze the model
         for param in self.parameters(): param.requires_grad_(True) 
         for _ in range(n_epoch):
-            __ = 0 # batch counter
             self.optimizer.zero_grad()
 
-            for x, y in K.get_batch(
-                X, Y,
-                batch_size=batch_size,
-                shuffle=shuffle
-                ):
+            for __, (x, y) in enumerate(train_loader):
+                x, y = x.to(next(self.parameters()).device),\
+                y.to(next(self.parameters()).device) # FIXME model sharding
 
                 # update X by default at the beginning of training
                 update_X = True if _==0 and __==0 else False
 
-                __ += 1
-
                 output = self(x, update_X=update_X)
 
-                loss = self.loss_fn(output, y)
-                # L2 regulatization
-                # is taken care of by setting the weight_decay param in the
-                # optimizer
+                loss = self.loss_fn(output, y) / x.size(0)
 
                 if verbose:
-                    print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
-                        _+1, n_epoch, __, n_batch+int(last_batch),
+                    print('epoch: {}/{}, batch: {}, loss({}): {:.3f}'.format(
+                        _+1, n_epoch, __,
                         self.loss_fn.__class__.__name__,
                         loss.item()
                         ))
-
+                loss.backward()
                 if not accumulate_grad:
                     # update weights at each batch
-                    loss.backward()
                     self.optimizer.step()
                     self.optimizer.zero_grad()
                     # update X after a weight update
                     self(x, update_X=True)
 
-                else:
-                    # accumulate gradient, do not update weights
-                    loss.backward(retain_graph=True)
+                # else:
+                    # loss.backward(retain_graph=True)
 
             if accumulate_grad:
                 # update weights using the accumulated gradient from each batch
@@ -425,14 +407,13 @@ class feedforward(_baseFeedforward):
 
 
             # validate
-            if X_val is not None and (_+1) % val_window==0:
+            
+            if val_loader is not None and (_+1) % val_window==0:
                 
                 assert self.metric_fn is not None
-                self.evaluate(X_test=X_val, Y_test=Y_val, 
+                self.evaluate(test_loader=val_loader, 
                     write_to=write_to, end=end, metric_fn=self.metric_fn
                     )
-                
-            
 
         if verbose: print('\n' + '#'*10 + '\n')
 
