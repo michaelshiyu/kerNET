@@ -20,6 +20,7 @@ class _baseFeedforward(torch.nn.Module):
         super().__init__()
         self._layer_counter = 0
         self._print_tensors = False
+        self._device = None
 
     def add_layer(self, layer):
         """
@@ -223,10 +224,11 @@ class _baseFeedforward(torch.nn.Module):
             # TODO require metric_fn do not average over minibatch
 
             n_test = 0
+            n_batch = 0
             total_loss = 0
             for x_test, y_test in test_loader:
-                x_test, y_test = x_test.to(next(self.parameters()).device),\
-                y_test.to(next(self.parameters()).device) # FIXME model sharding
+                x_test, y_test = x_test.to(self._device),\
+                y_test.to(self._device) 
 
                 x_eval = self(
                     x_test,
@@ -265,16 +267,27 @@ class _baseFeedforward(torch.nn.Module):
                     
                     batch_loss = metric_fn(kmtrx.view(1, -1), ideal_kmtrx.view(1, -1))
 
-                    n_test += x_test.size(0)
+                    if isinstance(metric_fn, torch.nn.CosineSimilarity):
+                        # for CosineSimilarity, one cannot get the true cosine
+                        # similarity of the test set in a batch mode. So we use
+                        # an averaged cosine similarity over the batches instead
+                        n_batch += 1
+                    else:
+                        # since the raw loss value is the sum over a matrix of
+                        # size x_test.size(0) * x_test.size(0)
+                        n_test += x_test.size(0) ** 2 
                     total_loss += batch_loss.item()
 
-            loss = total_loss / n_test
-            print('{}: {:.3f}'.format(
+            if isinstance(metric_fn, torch.nn.CosineSimilarity):
+                loss = total_loss / n_batch
+            else:
+                loss = total_loss / n_test
+            print('{}: {:.6f}'.format(
                 metric_fn.__class__.__name__,
                 loss
             ))
             if write_to:
-                print('{}: {:.3f}'.format(
+                print('{}: {:.6f}'.format(
                     metric_fn.__class__.__name__,
                     loss
                 ), file=open(write_to,'a'), end=end)
@@ -371,8 +384,8 @@ class feedforward(_baseFeedforward):
             self.optimizer.zero_grad()
 
             for __, (x, y) in enumerate(train_loader):
-                x, y = x.to(next(self.parameters()).device),\
-                y.to(next(self.parameters()).device) # FIXME model sharding
+                x, y = x.to(self._device),\
+                y.to(self._device) 
 
                 # update X by default at the beginning of training
                 update_X = True if _==0 and __==0 else False
@@ -382,7 +395,7 @@ class feedforward(_baseFeedforward):
                 loss = self.loss_fn(output, y) / x.size(0)
 
                 if verbose:
-                    print('epoch: {}/{}, batch: {}, loss({}): {:.3f}'.format(
+                    print('epoch: {}/{}, batch: {}, loss({}): {:.6f}'.format(
                         _+1, n_epoch, __,
                         self.loss_fn.__class__.__name__,
                         loss.item()
@@ -513,15 +526,11 @@ class _greedyFeedforward(_baseFeedforward):
     def _fit_hidden(
         self,
         n_epoch,
-        X, Y,
+        train_loader,
         n_class,
-        batch_size=None,
-        shuffle=False,
         accumulate_grad=True,
-        X_val=None,
-        Y_val=None,
+        val_loader=None,
         val_window=30,
-        val_batch_size=300,
         write_to=None,
         end=None,
         keep_grad=False,
@@ -588,17 +597,7 @@ class _greedyFeedforward(_baseFeedforward):
         model (optional) : str
             kMLP or MLP.
         """
-        
-        # this model only supports hard class labels
-        assert len(Y.shape) <= 2
-        assert X.shape[0]==Y.shape[0]
 
-        if not batch_size or batch_size > X.shape[0]: 
-            batch_size = X.shape[0]
-        n_batch = X.shape[0] // batch_size
-        last_batch = bool(X.shape[0] % batch_size)
-
-        if len(Y.shape)==1: Y=Y.view(-1, 1)
         # K.ideal_kmtrx() requires label tensor to be of shape (n, 1)
 
         for i in range(self._layer_counter-1):
@@ -612,19 +611,14 @@ class _greedyFeedforward(_baseFeedforward):
             for param in layer.parameters(): param.requires_grad_(True)
 
             for _ in range(n_epoch[i]): 
-                
-                
-                __ = 0 # batch counter
                 optimizer.zero_grad()
-                for x, y in K.get_batch(
-                    X, Y,
-                    batch_size=batch_size,
-                    shuffle=shuffle
-                    ):
+
+                for __, (x, y) in enumerate(train_loader):
                     # update X by default at the beginning of training
                     update_X = True if _==0 and __==0 else False
 
-                    __ += 1
+                    x, y = x.to(self._device), y.to(self._device)
+                    if len(y.shape)==1: y=y.view(-1, 1) # required by get_ideal_kmtrx
 
                     ideal_kmtrx = critic.get_ideal_kmtrx(y, y, n_class=n_class)
 
@@ -643,19 +637,20 @@ class _greedyFeedforward(_baseFeedforward):
                     if loss_fn.__class__.__name__=='CosineSimilarity':
                         loss = -loss_fn(kmtrx.view(1, -1), ideal_kmtrx.view(1, -1))
                     else:
-
-                        loss = loss_fn(kmtrx.view(-1, 1), ideal_kmtrx.view(-1, 1))
+                        # since the raw loss value is the sum over a matrix of
+                        # size x.size(0) * x.size(0)
+                        loss = loss_fn(kmtrx.view(-1, 1), ideal_kmtrx.view(-1, 1)) / (x.size(0) ** 2)
 
                     if verbose:
                         if loss_fn.__class__.__name__=='CosineSimilarity':
-                            print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
-                                _+1, n_epoch[i], __, n_batch+int(last_batch),
+                            print('epoch: {}/{}, batch: {}, loss({}): {:.6f}'.format(
+                                _+1, n_epoch[i], __,
                                 'Alignment',
                                 -loss.item()
                                 ))
                         else:
-                            print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
-                                _+1, n_epoch[i], __, n_batch+int(last_batch),
+                            print('epoch: {}/{}, batch: {}, loss({}): {:.6f}'.format(
+                                _+1, n_epoch[i], __,
                                 loss_fn.__class__.__name__,
                                 loss.item()
                                 ))
@@ -677,11 +672,11 @@ class _greedyFeedforward(_baseFeedforward):
                         optimizer.zero_grad()
                 
 
-                if X_val is not None and (_+1) % val_window==0:
-                    
-                    self.evaluate(X_test=X_val, Y_test=Y_val, 
+                if val_loader is not None and (_+1) % val_window==0:
+                    # TODO how to get the cosine similarity over an entire test set in batch evaluate mode?
+                    self.evaluate(test_loader=val_loader, 
                         write_to=write_to, end=end, metric_fn=metric_fn, critic=critic, hidden_val=True,
-                            layer=i, n_class=n_class, batch_size=val_batch_size
+                            layer=i, n_class=n_class
                     )
 
 
@@ -692,14 +687,10 @@ class _greedyFeedforward(_baseFeedforward):
     def _fit_output(
         self,
         n_epoch,
-        X, Y,
-        batch_size=None,
-        shuffle=False,
+        train_loader,
         accumulate_grad=True,
-        X_val=None,
-        Y_val=None,
+        val_loader=None,
         val_window=30,
-        val_batch_size=300,
         write_to=None,
         end=None,
         keep_grad=False,
@@ -763,13 +754,6 @@ class _greedyFeedforward(_baseFeedforward):
         """
 
         # this model only supports hard class labels
-        assert len(Y.shape) <= 2 
-        assert X.shape[0]==Y.shape[0]
-
-        if not batch_size or batch_size > X.shape[0]: 
-            batch_size = X.shape[0]
-        n_batch = X.shape[0] // batch_size
-        last_batch = bool(X.shape[0] % batch_size)
 
         i = self._layer_counter-1
         optimizer = getattr(self, 'optimizer'+str(i))
@@ -780,18 +764,13 @@ class _greedyFeedforward(_baseFeedforward):
         # unfreeze this layer
         for param in layer.parameters(): param.requires_grad_(True) 
         for _ in range(n_epoch[i]):
-            __ = 0 # batch counter
+
             optimizer.zero_grad()
-            for x, y in K.get_batch(
-                X, Y,
-                batch_size=batch_size,
-                shuffle=shuffle
-                ):
+            for __, (x, y) in enumerate(train_loader):
+                x, y = x.to(self._device), y.to(self._device) 
                 # update X by default at the beginning of training
                 update_X = True if _==0 and __==0 else False
 
-                __ += 1
-                
                 output = self(x, upto=i, update_X=update_X)
 
                 if loss_fn.__class__.__name__=='MarginRankingLoss': # binary hinge loss
@@ -800,16 +779,16 @@ class _greedyFeedforward(_baseFeedforward):
                     nega_ones = torch.ones_like(y) * (-1)
                     y = torch.where(y==1, ones, nega_ones)
 
-                    loss = loss_fn(output.view(-1,), torch.zeros_like(output, dtype=torch.float).view(-1,), y.to(torch.float).view(-1,))
+                    loss = loss_fn(output.view(-1,), torch.zeros_like(output, dtype=torch.float).view(-1,), y.to(torch.float).view(-1,)) / x.size(0)
                 else:
-                    loss = loss_fn(output, y)
+                    loss = loss_fn(output, y) / x.size(0)
                 # L2 regulatization
                 # is taken care of by setting the weight_decay param in the
                 # optimizer
 
                 if verbose:
-                    print('epoch: {}/{}, batch: {}/{}, loss({}): {:.3f}'.format(
-                        _+1, n_epoch[i], __, n_batch+int(last_batch),
+                    print('epoch: {}/{}, batch: {}, loss({}): {:.6f}'.format(
+                        _+1, n_epoch[i], __,
                         loss_fn.__class__.__name__,
                         loss.item()
                         ))
@@ -829,10 +808,10 @@ class _greedyFeedforward(_baseFeedforward):
                 if not keep_grad:
                     optimizer.zero_grad()
 
-            if X_val is not None and (_+1) % val_window==0:
+            if val_loader is not None and (_+1) % val_window==0:
                 
-                self.evaluate(X_test=X_val, Y_test=Y_val, 
-                    write_to=write_to, end=end, metric_fn=metric_fn, batch_size=val_batch_size
+                self.evaluate(test_loader=val_loader,
+                    write_to=write_to, end=end, metric_fn=metric_fn
                     )
                 
             
@@ -855,15 +834,11 @@ class greedyFeedforward(_greedyFeedforward):
     def fit(
         self,
         n_epoch,
-        X, Y,
+        train_loader,
         n_class,
-        batch_size=None,
-        shuffle=False,
         accumulate_grad=True,
-        X_val=None,
-        Y_val=None,
+        val_loader=None,
         val_window=30,
-        val_batch_size=300,
         write_to=None,
         end=None,
         keep_grad=False,
@@ -944,15 +919,11 @@ class greedyFeedforward(_greedyFeedforward):
         self._compile()
         self._fit_hidden(
             n_epoch,
-            X, Y,
+            train_loader,
             n_class,
-            batch_size=batch_size,
-            shuffle=shuffle,
             accumulate_grad=accumulate_grad,
-            X_val=X_val,
-            Y_val=Y_val,
+            val_loader=val_loader,
             val_window=val_window,
-            val_batch_size=val_batch_size,
             write_to=write_to,
             end=end,
             keep_grad=keep_grad,
@@ -962,14 +933,10 @@ class greedyFeedforward(_greedyFeedforward):
 
         self._fit_output(
             n_epoch,
-            X, Y,
-            batch_size=batch_size,
-            shuffle=shuffle,
+            train_loader,
             accumulate_grad=accumulate_grad,
-            X_val=X_val,
-            Y_val=Y_val,
+            val_loader=val_loader,
             val_window=val_window,
-            val_batch_size=val_batch_size,
             write_to=write_to,
             end=end,
             keep_grad=keep_grad,

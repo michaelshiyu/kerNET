@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import itertools, sys
+import itertools, sys, os
 
 import numpy as np
 import torch
@@ -37,27 +37,7 @@ if __name__=='__main__':
         download=True
         )
     
-    train_loader = torch.utils.data.DataLoader(
-        dataset=train,
-        batch_size=60000,
-        shuffle=False
-    )
-    test_loader = torch.utils.data.DataLoader(
-        dataset=test,
-        batch_size=60000,
-        shuffle=False
-    )
-
-    x_train, y_train = iter(train_loader).next()
-    x_test, y_test = iter(test_loader).next()
-
-    x_train = x_train.reshape(x_train.shape[0], -1)
-    x_test = x_test.reshape(x_test.shape[0], -1)
-
-    x_train, y_train = x_train.to(device), y_train.to(device)
-    x_test, y_test = x_test.to(device), y_test.to(device)
-    
-    n_class = int(torch.max(y_train) + 1)
+    n_class = 10
     
     #########
     # set up model
@@ -98,9 +78,30 @@ if __name__=='__main__':
     ensemble, component_size, batch_size, shuffle, accumulate_grad, hidden_cost \
     in itertools.product(*params):
 
+        train_loader = torch.utils.data.DataLoader(
+            dataset=train,
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            num_workers=2
+        )
+        test_loader = torch.utils.data.DataLoader(
+            dataset=test,
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            num_workers=2
+        )
+
         net = greedyFeedforward()
 
-        # randomly get centers for the kernelized layers
+        # randomly get centers for the kernelized layer
+        dummy_train_loader = torch.utils.data.DataLoader(
+            dataset=train,
+            batch_size=60000,
+            shuffle=False
+        )
+        x_train, y_train = next(iter(dummy_train_loader))
+
+        # get a balanced subset of size n as centers
         x_train2, y_train2 = K.get_subset(
             X=x_train,
             Y=y_train,
@@ -147,19 +148,19 @@ if __name__=='__main__':
             net.add_metric(torch.nn.CosineSimilarity()) # metric for validation
             net.add_metric(torch.nn.CosineSimilarity())
         elif hidden_cost=='l2': 
-            net.add_loss(torch.nn.MSELoss(size_average=True, reduce=True))
-            net.add_loss(torch.nn.MSELoss(size_average=True, reduce=True))
-            net.add_metric(torch.nn.MSELoss(size_average=True, reduce=True))
-            net.add_metric(torch.nn.MSELoss(size_average=True, reduce=True))
+            net.add_loss(torch.nn.MSELoss(reduction='sum'))
+            net.add_loss(torch.nn.MSELoss(reduction='sum'))
+            net.add_metric(torch.nn.MSELoss(reduction='sum'))
+            net.add_metric(torch.nn.MSELoss(reduction='sum'))
         elif hidden_cost=='l1':
-            net.add_loss(torch.nn.L1Loss(size_average=True, reduce=True))
-            net.add_loss(torch.nn.L1Loss(size_average=True, reduce=True))
-            net.add_metric(torch.nn.L1Loss(size_average=True, reduce=True))
-            net.add_metric(torch.nn.L1Loss(size_average=True, reduce=True))
+            net.add_loss(torch.nn.L1Loss(reduction='sum'))
+            net.add_loss(torch.nn.L1Loss(reduction='sum'))
+            net.add_metric(torch.nn.L1Loss(reduction='sum'))
+            net.add_metric(torch.nn.L1Loss(reduction='sum'))
 
         # add loss function for the output layer
-        net.add_loss(torch.nn.CrossEntropyLoss())
-        net.add_metric(K.L0Loss())
+        net.add_loss(torch.nn.CrossEntropyLoss(reduction='sum'))
+        net.add_metric(K.L0Loss(reduction='sum'))
 
         # this specifies how the G_i are computed (see the paper for the definition of G_i)
         net.add_critic(layer2.phi) # calculate G_1 using kernel k^(2)
@@ -168,20 +169,56 @@ if __name__=='__main__':
         #########
         # begin training
         #########
+        net._device = device
+        net.to(net._device)
 
-        net.to(device)
         net.fit(
             n_epoch=(epo1, epo2, epo3),
-            batch_size=batch_size,
-            shuffle=shuffle,
-            X=x_train,
-            Y=y_train,
+            train_loader=train_loader,
             n_class=n_class,
             accumulate_grad=accumulate_grad,
+            # technically we should use a stand-out validation set instead of 
+            # the test set, this is just to give you an example of how fit works
+            val_loader=test_loader, 
+            val_window=1,
             )
+
+        if not os.path.isdir('checkpoint'):
+            os.mkdir('checkpoint')
+        torch.save(net.state_dict(), './checkpoint/kmlp_mnist.t7')
 
         #########
         # test
         #########
 
-        net.evaluate(X_test=x_test, Y_test=y_test, batch_size=1000, metric_fn=K.L0Loss())
+        net.evaluate(test_loader=test_loader, metric_fn=K.L0Loss(reduction='sum'))
+
+        #########
+        # resume from checkpoint
+        #########
+
+        # note that pausing and resuming training in a layer-wise setting is somewhat
+        # more delicate than they are in backpropagation. For example, consider training 
+        # a two-layer model layer-wise, two consecutive training sessions with 
+        # epochs (10, 10) and (5, 5) result in a model that is different from that
+        # obtained with training for (15, 15). It is the output layer that differs in this 
+        # case. Although, you could train the input layer
+        # for 10 epochs, pause and then resume for 5 epochs before you start the training
+        # of the output layer. And that would give you the same result as if you have 
+        # trained the network for (15, 15).
+
+        # also note that if you would like to instantiate a network model from scratch,
+        # you should train it for at least 1 epoch before calling net.load_state_dict
+        # otherwise torch would most likely throw a size mismatch error because 
+        # the tensor of centers in your new model, i.e., yourmodel.X, is not of 
+        # the same size as that in the state_dict you're loading
+        net.load_state_dict(torch.load('./checkpoint/kmlp_mnist.t7'))
+        net.fit(
+            n_epoch=(epo1, epo2, epo3),
+            train_loader=train_loader,
+            n_class=n_class,
+            accumulate_grad=accumulate_grad,
+            val_loader=test_loader, 
+            val_window=1,
+            )
+        net.evaluate(test_loader=test_loader, metric_fn=K.L0Loss(reduction='sum'))

@@ -58,34 +58,7 @@ if __name__=='__main__':
         download=True
         )
     
-    train_loader = torch.utils.data.DataLoader(
-        dataset=train,
-        batch_size=60000,
-        shuffle=False
-    )
-    test_loader = torch.utils.data.DataLoader(
-        dataset=test,
-        batch_size=60000,
-        shuffle=False
-    )
-
-    x_train, y_train = iter(train_loader).next()
-    x_test, y_test = iter(test_loader).next()
-
-    x_train = x_train.reshape(x_train.shape[0], -1)
-    x_test = x_test.reshape(x_test.shape[0], -1)
-
-    x_train, y_train = x_train.to(device), y_train.to(device)
-    x_test, y_test = x_test.to(device), y_test.to(device)
-    
-    
-    x_train = x_train.reshape(x_train.shape[0], -1).view(60000, 1, 28, 28) 
-    x_test = x_test.reshape(x_test.shape[0], -1).view(10000, 1, 28, 28) 
-
-    x_train, y_train = x_train.to(device), y_train.to(device)
-    x_test, y_test = x_test.to(device), y_test.to(device)
-    
-    n_class = int(torch.max(y_train) + 1)
+    n_class = 10
 
     #########
     # set up model
@@ -118,9 +91,30 @@ if __name__=='__main__':
     ensemble, component_size, batch_size, shuffle, accumulate_grad, hidden_cost \
     in itertools.product(*params):
 
+        train_loader = torch.utils.data.DataLoader(
+            dataset=train,
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            num_workers=2
+        )
+        test_loader = torch.utils.data.DataLoader(
+            dataset=test,
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            num_workers=2
+        )
+
         net = greedyFeedforward()
 
         # randomly get centers for the kernelized layer
+        dummy_train_loader = torch.utils.data.DataLoader(
+            dataset=train,
+            batch_size=60000,
+            shuffle=False
+        )
+        x_train, y_train = next(iter(dummy_train_loader))
+
+        # get a balanced subset of size n as centers
         x_train2, y_train2 = K.get_subset(
             X=x_train,
             Y=y_train,
@@ -133,53 +127,61 @@ if __name__=='__main__':
         # a kernelized, fully-connected layer. X is the set of centers, n_out is the number of kernel machines on this layer
         layer2 = kFullyConnected(X=x_train2, n_out=n_class, kernel='gaussian', sigma=sigma2, bias=True)
 
-        if not ensemble:
-            net.add_layer(layer1)
-            net.add_layer(layer2)
-
-        else:
-            net.add_layer(layer1)
-            net.add_layer(layer2.to_ensemble(component_size))
+        if ensemble:
+            layer2 = layer2.to_ensemble(component_size)
 
         # add optimizer to each layer. There is no need to assign each optimizer to the parameters of the corresponding layer manually, this will later be done by the model in net._compile() when you call net.fit(). 
         net.add_optimizer(
-            torch.optim.Adam(params=net.parameters(), lr=lr1, weight_decay=w_decay1) 
+            torch.optim.Adam(params=layer1.parameters(), lr=lr1, weight_decay=w_decay1) 
             )
         net.add_optimizer(
-            torch.optim.Adam(params=net.parameters(), lr=lr2, weight_decay=w_decay2)
+            torch.optim.Adam(params=layer2.parameters(), lr=lr2, weight_decay=w_decay2)
             )
 
         # add loss function for the hidden layers
+        # for all loss functions except CosineSimilarity, set reduction to 'sum'
+        # and kerNET would do the averagings for you and return loss values as if 
+        # the loss functions have been set to reduction='mean'
         if hidden_cost=='alignment': # changing between alignment, l1 and l2 may require re-tuning of the hyperparameters
             net.add_loss(torch.nn.CosineSimilarity())
             net.add_metric(torch.nn.CosineSimilarity()) # metric for validation
         elif hidden_cost=='l2':
-            net.add_loss(torch.nn.MSELoss(size_average=True, reduce=True))
-            net.add_metric(torch.nn.MSELoss(size_average=True, reduce=True))
+            net.add_loss(torch.nn.MSELoss(reduction='sum'))
+            net.add_metric(torch.nn.MSELoss(reduction='sum'))
         elif hidden_cost=='l1':
-            net.add_loss(torch.nn.L1Loss(size_average=True, reduce=True))
-            net.add_metric(torch.nn.L1Loss(size_average=True, reduce=True))
+            net.add_loss(torch.nn.L1Loss(reduction='sum'))
+            net.add_metric(torch.nn.L1Loss(reduction='sum'))
 
         # add loss function for the output layer
-        net.add_loss(torch.nn.CrossEntropyLoss())
-        net.add_metric(K.L0Loss())
+        net.add_loss(torch.nn.CrossEntropyLoss(reduction='sum'))
+        net.add_metric(K.L0Loss(reduction='sum'))
 
         # this specifies how the G_i are computed (see the paper for the definition of G_i)
         net.add_critic(layer2.phi) # calculate G_1 using kernel k^(2)
 
+        if torch.cuda.device_count() > 1:
+            layer1 = torch.nn.DataParallel(layer1)
+            # FIXME parallelizing kernelized layers currently has issues with layer.X
+            # layer2 = torch.nn.DataParallel(layer2)
+        
+        net.add_layer(layer1)
+        net.add_layer(layer2)
+
         #########
         # begin training
         #########
+        net._device = device
+        net.to(net._device)
 
-        net.to(device)
         net.fit(
             n_epoch=(epo1, epo2),
-            batch_size=batch_size,
-            shuffle=shuffle,
-            X=x_train,
-            Y=y_train,
+            train_loader=train_loader,
             n_class=n_class,
             accumulate_grad=accumulate_grad,
+            # technically we should use a stand-out validation set instead of 
+            # the test set, this is just to give you an example of how fit works
+            val_loader=test_loader, 
+            val_window=1,
             )
 
         if not os.path.isdir('checkpoint'):
@@ -190,7 +192,7 @@ if __name__=='__main__':
         # test
         #########
 
-        net.evaluate(X_test=x_test, Y_test=y_test, batch_size=1000, metric_fn=K.L0Loss())
+        net.evaluate(test_loader=test_loader, metric_fn=K.L0Loss(reduction='sum'))
 
         #########
         # resume from checkpoint
@@ -200,7 +202,11 @@ if __name__=='__main__':
         # more delicate than they are in backpropagation. For example, consider training 
         # a two-layer model layer-wise, two consecutive training sessions with 
         # epochs (10, 10) and (5, 5) result in a model that is different from that
-        # obtained with training for (15, 15)
+        # obtained with training for (15, 15). It is the output layer that differs in this 
+        # case. Although, you could train the input layer
+        # for 10 epochs, pause and then resume for 5 epochs before you start the training
+        # of the output layer. And that would give you the same result as if you have 
+        # trained the network for (15, 15).
 
         # also note that if you would like to instantiate a network model from scratch,
         # you should train it for at least 1 epoch before calling net.load_state_dict
@@ -210,11 +216,10 @@ if __name__=='__main__':
         net.load_state_dict(torch.load('./checkpoint/klenet5_mnist.t7'))
         net.fit(
             n_epoch=(epo1, epo2),
-            batch_size=batch_size,
-            shuffle=shuffle,
-            X=x_train,
-            Y=y_train,
+            train_loader=train_loader,
             n_class=n_class,
             accumulate_grad=accumulate_grad,
+            val_loader=test_loader, 
+            val_window=1,
             )
-        net.evaluate(X_test=x_test, Y_test=y_test, batch_size=1000, metric_fn=K.L0Loss())
+        net.evaluate(test_loader=test_loader, metric_fn=K.L0Loss(reduction='sum'))
