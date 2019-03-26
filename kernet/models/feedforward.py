@@ -10,7 +10,6 @@ from kernet.layers.kernelized_layer import _kernelizedLayer, kFullyConnected, kF
 # TODO tests
 # TODO documentation is behind code
 # TODO more flexibility in write_to (write settings of training, model details, etc.)
-# TODO add support for trainable_X
 
 class _baseFeedforward(torch.nn.Module):
     """

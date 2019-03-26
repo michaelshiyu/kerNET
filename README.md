@@ -21,21 +21,18 @@ Some simple tutorials are given below (they assume that you have some basic know
 
 ```python
 import torch
+import torch.utils.data
 
 import kernet.backend as K
 from kernet.models.feedforward import feedforward
 from kernet.layers.kernelized_layer import kFullyConnected
 
-# suppose we already have x_train, y_train, x_validation, y_validation, x_test, 
-# y_test and n_class (the number of classes)
-# without loss of generality, assume x_train and x_validation have shape [n_example, n_feature].
-
-# building an array of 'n_class' RBF networks for classification with 'n_class' classes
-# 'X' is the set of centers of the networks, can also be a subset of x_train
+# building an RBF networks for classification with 'n_class' classes
+# 'X' is the set of centers of the networks, usually taken to be x_train or a subset of it
 # currently only Gaussian kernel (exp(-||x - y||^2/(2 * sigma ** 2))) is supported
 
 net = feedforward() 
-net.add_layer(kFullyConnected(X=x_train, n_out=n_class, kernel='gaussian', sigma=1))
+net.add_layer(kFullyConnected(X=centers, n_out=n_class, kernel='gaussian', sigma=1))
 
 # or, we can make 'X' adaptive by setting it to be a set of learnable parameters
 # 'p' controls the number of centers
@@ -43,7 +40,7 @@ net.add_layer(kFullyConnected(X=x_train, n_out=n_class, kernel='gaussian', sigma
 
 # if your 'X' is a large sample, you might have trouble training this model
 # on GPU. In that case, do
-# layer = kFullyConnected(X=x_train, n_out=n_class, kernel='gaussian', sigma=1)
+# layer = kFullyConnected(X=centers, n_out=n_class, kernel='gaussian', sigma=1)
 # net.add_layer(layer.to_ensemble(100))
 # what the above two lines do is that they break 'X' into a few chunks of 100 examples (the last chunk may be smaller)
 # and evaluate them in a sequential fashion without having to put them on 
@@ -52,24 +49,24 @@ net.add_layer(kFullyConnected(X=x_train, n_out=n_class, kernel='gaussian', sigma
 # network, only the way this output was computed.
 
 # add optimizer, loss, and metric (for validation)
+# for all loss functions except CosineSimilarity, set reduction to 'sum'
+# and kerNET would do the averagings for you and return loss values as if 
+# the loss functions have been set to reduction='mean'
 net.add_optimizer(torch.optim.Adam(params=net.parameters(), lr=lr, weight_decay=weight_decay))
-net.add_loss(torch.nn.CrossEntropyLoss())
-net.add_metric(K.L0Loss()) # classification error (for validation)
+net.add_loss(torch.nn.CrossEntropyLoss(reduction='sum'))
+net.add_metric(K.L0Loss(reduction='sum')) # classification error (for validation)
 
 # start training
 net.fit(
     n_epoch=n_epoch,
-    batch_size=batch_size,
-    shuffle=shuffle, # shuffle data for each epoch
-    X=x_train,
-    Y=y_train,
-    X_val=x_validation, # if you don't want to validate, just ignore 'X_val' and 'Y_val'
-    Y_val=y_validation,
+    train_loader=train_loader # torch.utils.data.DataLoader type
+    val_loader=val_loader, # if you don't want to validate, just ignore val_loader and val_window
     val_window=val_window, # interval between two validations
+    accumulate_grad=False, # take one step per minibatch or accumulate grad till the epoch is over
     )
 
 # test the trained model, print classification error
-net.evaluate(X_test=x_test, Y_test=y_test, batch_size=batch_size, metric_fn=K.L0Loss())
+net.evaluate(test_loader=test_loader, metric_fn=K.L0Loss(reduction='sum'))
 
 ```
 
@@ -86,14 +83,20 @@ Below we demonstrate how to build a fully-kernelized MLP and train it with backp
   
 net = feedforward() 
 
-net.add_layer(kFullyConnected(X=x_train, n_out=hidden_dim0, kernel='gaussian', sigma=3))
-net.add_layer(kFullyConnected(X=x_train, n_out=hidden_dim1, kernel='gaussian', sigma=2))
-net.add_layer(kFullyConnected(X=x_train, n_out=n_class, kernel='gaussian', sigma=1))
+net.add_layer(kFullyConnected(X=centers1, n_out=hidden_dim0, kernel='gaussian', sigma=3))
+net.add_layer(kFullyConnected(X=centers2, n_out=hidden_dim1, kernel='gaussian', sigma=2))
+net.add_layer(kFullyConnected(X=centers3, n_out=n_class, kernel='gaussian', sigma=1))
 
 # note that you can later access these layers by calling on them, for example, the input layer can be accessed as 
 input_layer = net.layer0 # the layers are zero-indexed
 
-# for non-input layers, their centers 'X' actually require some special manipulations. You can refer to the paper for more details. For example, for the layer right after the input layer, its 'X' should be input_layer(x_train) and should be updated every time the parameters of the input layer change. But you do not need to worry about this as kerNET would take care of it in the background
+# centers are usually subsets of x_train. For non-input layers, their centers 
+# 'X' actually require some special manipulations. You can refer to the paper 
+# for more details. For example, for the layer right after the input layer, 
+# its 'X' should be input_layer(centers2), i.e., the image of centers2 under the mapping 
+# defined by input_layer, and should be updated every time 
+# the parameters of the input layer change. But you do not need to worry 
+# about this as kerNET would take care of it in the background
 ```
 
 ## Build a neural-kernel hybrid network
@@ -122,7 +125,7 @@ class LeNet5_minus_output_layer(torch.nn.Module):
 net = feedforward()
 
 layer0 = LeNet5_minus_output_layer(in_channels=in_channels, padding=padding)
-layer1 = kFullyConnected(X=x_train, n_out=n_class, kernel='gaussian', sigma=1)
+layer1 = kFullyConnected(X=centers, n_out=n_class, kernel='gaussian', sigma=1)
 
 net.add_layer(layer0)
 net.add_layer(layer1)
@@ -145,13 +148,13 @@ net.add_optimizer(torch.optim.Adam(params=net.parameters(), lr=lr0, weight_decay
 net.add_optimizer(torch.optim.Adam(params=net.parameters(), lr=lr1, weight_decay=weight_decay1))
 
 # loss function to train layer0 and metric function for validation
-# below gives the alignment loss in the paper. You can substitute CosineSimilarity() with MSELoss(size_average=True, reduce=True) or L1Loss(size_average=True, reduce=True) to use the L^2 or L^1 loss in the paper, respectively
+# below gives the alignment loss in the paper. You can substitute CosineSimilarity() with MSELoss(reduction='sum') or L1Loss(reduction='sum') to use the L^2 or L^1 loss in the paper, respectively
 net.add_loss(torch.nn.CosineSimilarity())
 net.add_metric(torch.nn.CosineSimilarity())
 
 # loss and metric for layer1
-net.add_loss(torch.nn.CrossEntropyLoss())
-net.add_metric(K.L0Loss())
+net.add_loss(torch.nn.CrossEntropyLoss(reduction='sum'))
+net.add_metric(K.L0Loss(reduction='sum'))
 
 # layer1.phi is just the \phi function associated with the kernel of layer1. This determines how the kernel matrix of layer0 is computed. You can check the paper for more details (this kernel matrix is called G_0 in the paper). In short, suppose you have an l-layer model to train layer-wise, you should add layer_{i+1}.phi as the critic of layer_i for i = 1, 2, ..., l-1
 net.add_critic(layer1.phi)
@@ -159,21 +162,19 @@ net.add_critic(layer1.phi)
 # start training
 net.fit(
     n_epoch=(epo0, epo1), # epoch to train for 
-    batch_size=batch_size,
-    shuffle=shuffle,
-    X=x_train,
-    Y=y_train,
+    train_loader=train_loader,
     n_class=n_class, # this information is needed to compute G^\star (see the paper for more information on this matrix)
     accumulate_grad=accumulate_grad,
-    X_val=x_val,
-    Y_val=y_val,
+    val_loader=val_loader, # if you don't want to validate, just ignore val_loader and val_window
     val_window=val_window,
     )
 
-net.evaluate(X_test=x_test, Y_test=y_test, batch_size=batch_size, metric_fn=K.L0Loss())
+net.evaluate(test_loader=test_loader, metric_fn=K.L0Loss(reduction='sum'))
 ```
 
 In examples, you will find [a working example](https://github.com/michaelshiyu/kerNET/blob/master/examples/klenet5_mnist.py) of this kernelized LeNet-5 trained and tested on [MNIST](http://yann.lecun.com/exdb/mnist/). [Another working example](https://github.com/michaelshiyu/kerNET/blob/master/examples/kmlp_mnist.py) of the earlier kernelized three-layer MLP on MNIST is also provided. The LeNet-5 example should take no more than a few minutes on a decent GPU. The MLP example would take longer.
+
+What you will also find in those examples are instructions on how to pause-and-resume training and how to map your jobs to multiple GPUs when using kerNET.
 
 To get deterministic results across runs, you should set
 ```python
@@ -219,22 +220,19 @@ wrapper.add_layer(net)
 wrapper.add_optimizer(
     torch.optim.Adam(params=wrapper.parameters(), lr=lr, weight_decay=weight_decay)
     )
-wrapper.add_loss(torch.nn.CrossEntropyLoss())
-wrapper.add_metric(K.L0Loss()) # classification error (for validation)
+wrapper.add_loss(torch.nn.CrossEntropyLoss(reduction='sum'))
+wrapper.add_metric(K.L0Loss(reduction='sum')) # classification error (for validation)
 
 # start training
 wrapper.fit(
     n_epoch=n_epoch,
-    batch_size=batch_size,
-    shuffle=shuffle, # shuffle data for each epoch
-    X=x_train,
-    Y=y_train,
-    X_val=x_validation, # if you don't want to validate, just ignore 'X_val' and 'Y_val'
-    Y_val=y_validation,
+    train_loader=train_loader,
+    val_loader=val_loader, # if you don't want to validate, just ignore val_loader and val_window
     val_window=val_window, # interval between two validations
+    accumulate_grad=False
     )
 
 # test the trained model, print classification error
-wrapper.evaluate(X_test=x_test, Y_test=y_test, batch_size=batch_size, metric_fn=K.L0Loss())
+wrapper.evaluate(test_loader=test_loader, metric_fn=K.L0Loss(reduction='sum'))
 ```
 
