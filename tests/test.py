@@ -3,6 +3,7 @@
 import unittest
 import numpy as np
 import torch
+import torch.utils.data
 
 import kernet.backend as K
 from kernet.models.feedforward import _baseFeedforward, feedforward, greedyFeedforward
@@ -29,7 +30,11 @@ class KNTestCase(unittest.TestCase):
 
         self.X = torch.tensor([[1, 2], [3, 4]], dtype=torch.float, device=device)
         self.Y = torch.tensor([0, 1], dtype=torch.int64, device=device)
-
+        
+        self.train_loader = torch.utils.data.DataLoader(
+                torch.utils.data.TensorDataset(self.X, self.Y),
+                batch_size=2
+                )
         #########
         # base kn
         self.kn = greedyFeedforward()
@@ -57,8 +62,8 @@ class KNTestCase(unittest.TestCase):
         self.kn.add_critic(self.kn.layer1.phi)
         self.kn.add_loss(torch.nn.CosineSimilarity())
         self.kn.add_metric(torch.nn.CosineSimilarity())
-        self.kn.add_loss(torch.nn.CrossEntropyLoss())
-        self.kn.add_metric(torch.nn.CrossEntropyLoss())
+        self.kn.add_loss(torch.nn.CrossEntropyLoss(reduction='sum'))
+        self.kn.add_metric(torch.nn.CrossEntropyLoss(reduction='sum'))
 
         #########
         # ensemble
@@ -69,8 +74,8 @@ class KNTestCase(unittest.TestCase):
         self.kn_ensemble.add_critic(self.kn.layer1.phi)
         self.kn_ensemble.add_loss(torch.nn.CosineSimilarity())
         self.kn_ensemble.add_metric(torch.nn.CosineSimilarity())
-        self.kn_ensemble.add_loss(torch.nn.CrossEntropyLoss())
-        self.kn_ensemble.add_metric(torch.nn.CrossEntropyLoss())
+        self.kn_ensemble.add_loss(torch.nn.CrossEntropyLoss(reduction='sum'))
+        self.kn_ensemble.add_metric(torch.nn.CrossEntropyLoss(reduction='sum'))
 
         self.kn.to(device)
         self.kn_ensemble.to(device)
@@ -88,6 +93,9 @@ class KNTestCase(unittest.TestCase):
             X_eval_hidden.detach().to('cpu').numpy(),
             np.array([[0.22823608, 0.9488263], [0.26411805, 1.0205902]])
             ))
+        
+        # TODO deprecating these tests as evaluate is now used for getting loss only
+        '''
         # test forward equals evaluate
         X_eval_ = self.kn.evaluate(self.X)
         X_eval_hidden_ = self.kn.evaluate(self.X, layer=0)
@@ -99,6 +107,7 @@ class KNTestCase(unittest.TestCase):
             X_eval_hidden.detach().to('cpu').numpy(),
             X_eval_hidden_.detach().to('cpu').numpy()
             ))
+        '''
 
     def test_ensemble_forward_and_evaluate(self):
         # test forward for ensemble
@@ -113,6 +122,8 @@ class KNTestCase(unittest.TestCase):
             X_eval_hidden.detach().to('cpu').numpy(),
             np.array([[0.22823608, 0.9488263], [0.26411805, 1.0205902]])
             ))
+        # TODO deprecating these tests as evaluate is now used for getting loss only
+        '''
         # test forward equals evaluate for ensemble
         X_eval_ = self.kn_ensemble.evaluate(self.X)
         X_eval_hidden_ = self.kn_ensemble.evaluate(self.X, layer=0)
@@ -124,6 +135,7 @@ class KNTestCase(unittest.TestCase):
             X_eval_hidden.detach().to('cpu').numpy(),
             X_eval_hidden_.detach().to('cpu').numpy()
             ))
+        '''
 
     def test_grad(self):
         self.kn.add_optimizer(torch.optim.SGD(self.kn.parameters(), lr=0))
@@ -131,9 +143,8 @@ class KNTestCase(unittest.TestCase):
 
         self.kn.fit(
             n_epoch=(1, 1),
-            X=self.X,
-            Y=self.Y,
             n_class=2,
+            train_loader=self.train_loader,
             keep_grad=True,
             verbose=False
             )
@@ -149,11 +160,17 @@ class KNTestCase(unittest.TestCase):
         self.assertTrue(np.allclose(
             self.kn.layer1.weight.grad.detach().to('cpu').numpy(),
             np.array([[-0.12257326, -0.12217124], [0.12257326, 0.12217124]])
-            ))
+            ),
+            msg='grad should be {} but is actually{}'.format(
+                np.array([[-0.12257326, -0.12217124],[0.12257326, 0.12217124]]),
+                self.kn.layer1.weight.grad.detach().to('cpu').numpy()))
         self.assertTrue(np.allclose(
             self.kn.layer1.bias.grad.detach().to('cpu').numpy(),
             np.array([-0.12242149, 0.12242149])
-            ))
+            ),
+            msg='grad should be {} but is actually{}'.format(
+                np.array([-0.12242149, 0.12242149]),
+                self.kn.layer1.bias.grad.detach().to('cpu').numpy()))
 
     def test_ensemble_grad(self):
         self.kn_ensemble.add_optimizer(torch.optim.SGD(self.kn_ensemble.parameters(), lr=0))
@@ -161,8 +178,7 @@ class KNTestCase(unittest.TestCase):
 
         self.kn_ensemble.fit(
             n_epoch=(1, 1),
-            X=self.X,
-            Y=self.Y,
+            train_loader=self.train_loader,
             n_class=2,
             keep_grad=True,
             verbose=False
@@ -208,8 +224,7 @@ class KNTestCase(unittest.TestCase):
 
         self.kn.fit(
             n_epoch=(10, 10),
-            X=self.X,
-            Y=self.Y,
+            train_loader=self.train_loader,
             n_class=2,
             keep_grad=True,
             verbose=False
@@ -217,43 +232,55 @@ class KNTestCase(unittest.TestCase):
 
         self.kn_ensemble.fit(
             n_epoch=(10, 10),
-            X=self.X,
-            Y=self.Y,
+            train_loader=self.train_loader,
             n_class=2,
             keep_grad=True,
             verbose=False
             )
-
+        
         # test forward equals evaluate
+        
         X_eval = self.kn(self.X, update_X=True)
+        # TODO  deprecating these tests because evaluate is now used for
+        # getting loss only
+        '''
         X_eval_ = self.kn.evaluate(self.X)
         self.assertTrue(np.array_equal(
             X_eval.detach().to('cpu').numpy(),
             X_eval_.detach().to('cpu').numpy()
             ))
-
+        '''
         X_eval_hidden = self.kn(self.X, upto=0, update_X=True)
+        # TODO  deprecating these tests because evaluate is now used for
+        # getting loss only
+        '''
         X_eval_hidden_ = self.kn.evaluate(self.X, layer=0)
         self.assertTrue(np.array_equal(
             X_eval_hidden.detach().to('cpu').numpy(),
             X_eval_hidden_.detach().to('cpu').numpy()
             ))
-
+        '''
         # test forward equals evaluate for ensemble
         X_eval_ensemble = self.kn_ensemble(self.X, update_X=True)
+        # TODO  deprecating these tests because evaluate is now used for
+        # getting loss only
+        '''
         X_eval_ensemble_ = self.kn_ensemble.evaluate(self.X)
         self.assertTrue(np.array_equal(
             X_eval_ensemble.detach().to('cpu').numpy(),
             X_eval_ensemble_.detach().to('cpu').numpy()
             ))
-
+        '''
         X_eval_hidden_ensemble = self.kn_ensemble(self.X, upto=0, update_X=True)
+        # TODO  deprecating these tests because evaluate is now used for
+        # getting loss only
+        '''
         X_eval_hidden_ensemble_ = self.kn_ensemble.evaluate(self.X, layer=0)
         self.assertTrue(np.array_equal(
             X_eval_hidden_ensemble.detach().to('cpu').numpy(),
             X_eval_hidden_ensemble_.detach().to('cpu').numpy()
             ))
-
+        '''
         # test ensemble equals ordinary
         self.assertTrue(np.allclose(
             X_eval.detach().to('cpu').numpy(),
