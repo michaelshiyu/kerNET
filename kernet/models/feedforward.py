@@ -5,11 +5,11 @@ import types, gc, sys
 import torch
 
 import kernet.backend as K
+from kernet.utils.logger import Logger
 from kernet.layers.kernelized_layer import _kernelizedLayer, kFullyConnected, kFullyConnectedEnsemble, kFullyConnectedStack
 
 # TODO tests
 # TODO documentation is behind code
-# TODO more flexibility in write_to (write settings of training, model details, etc.)
 
 class _baseFeedforward(torch.nn.Module):
     """
@@ -20,6 +20,13 @@ class _baseFeedforward(torch.nn.Module):
         self._layer_counter = 0
         self._print_tensors = False
         self._device = None
+        self.logger = Logger()
+
+    def save_log(self, PATH):
+        self.logger.save(PATH)
+
+    def load_log(self, PATH):
+        self.logger.load(PATH)
 
     def add_layer(self, layer):
         """
@@ -298,8 +305,6 @@ class _baseFeedforward(torch.nn.Module):
 
 class feedforward(_baseFeedforward):
     """
-    # TODO change the name to feedforward
-
     A general feedforward model that does everything. 
     Wrap this around any feedforward network in PyTorch, then you can use its helper functions such as fit, evaluate, etc. to streamline your code.
     Trained with backpropagation.
@@ -316,16 +321,12 @@ class feedforward(_baseFeedforward):
         self,
         n_epoch,
         train_loader,
-        # batch_size=None,
-        # shuffle=False,
         accumulate_grad=True,
-        # X_val=None,
-        # Y_val=None,
         val_loader=None,
         val_window=30,
         verbose=True,
-        write_to=None,
-        end=None
+        save_best=False,
+        log_path=None
         ):
         """
         Train the model on some data.
@@ -422,10 +423,39 @@ class feedforward(_baseFeedforward):
             
             if val_loader is not None and (_+1) % val_window==0:
                 
-                assert self.metric_fn is not None
-                self.evaluate(test_loader=val_loader, 
-                    write_to=write_to, end=end, metric_fn=self.metric_fn
+                assert self.metric_fn is not None, \
+                    'Need to provide a metric function to validate w.r.t.'
+                val_loss = self.evaluate(test_loader=val_loader, metric_fn=self.metric_fn
                     )
+                # TODO to be deleted, for testing logger
+                """
+                with open('test_logger.txt', 'a') as f:
+                    print('epoch: {}/{}, val_loss: {:.6f} \n'.format(
+                        _+1, n_epoch, 
+                        val_loss
+                        ), file=f)
+                """
+                # write to log and save it
+                if save_best:
+                    assert log_path is not None, \
+                        'Need to provide a path to write log'
+                    if _==0: # first epoch
+                        self.logger.update(
+                            epoch=1,
+                            model_state_dict=self.state_dict(),
+                            val_loss=val_loss
+                            )
+                        self.save_log(log_path)
+
+                    else:
+                        if val_loss < self.logger.log['val_loss']:
+                            self.logger.update(
+                                epoch=_+1,
+                                model_state_dict=self.state_dict(),
+                                val_loss=val_loss
+                                )
+                            self.save_log(log_path)
+
 
         if verbose: print('\n' + '#'*10 + '\n')
 
