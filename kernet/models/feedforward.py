@@ -317,6 +317,26 @@ class feedforward(_baseFeedforward):
         assert isinstance(optimizer, torch.optim.Optimizer)
         setattr(self, 'optimizer', optimizer)
 
+    def log_and_save(self, epoch, val_loss_name, val_loss, log_path):
+        if epoch==1: # first epoch
+            self.logger.update(
+                epoch=epoch,
+                model_state_dict=self.state_dict(),
+                val_loss_name=val_loss_name,
+                val_loss=val_loss
+                )
+            self.save_log(log_path)
+
+        else:
+            if val_loss < self.logger.log['val_loss']:
+                self.logger.update(
+                    epoch=epoch,
+                    model_state_dict=self.state_dict(),
+                    val_loss_name=val_loss_name,
+                    val_loss=val_loss
+                    )
+                self.save_log(log_path)
+
     def fit(
         self,
         n_epoch,
@@ -377,7 +397,8 @@ class feedforward(_baseFeedforward):
         n_batch = X.shape[0] // batch_size
         last_batch = bool(X.shape[0] % batch_size)
         '''
-
+        if save_best:
+            assert log_path is not None
         # unfreeze the model
         for param in self.parameters(): param.requires_grad_(True) 
         for _ in range(n_epoch):
@@ -437,27 +458,12 @@ class feedforward(_baseFeedforward):
                 """
                 # write to log and save it
                 if save_best:
-                    assert log_path is not None, \
-                        'Need to provide a path to write log'
-                    if _==0: # first epoch
-                        self.logger.update(
-                            epoch=1,
-                            model_state_dict=self.state_dict(),
-                            val_loss=val_loss
+                    self.log_and_save(
+                            epoch=_+1,
+                            val_loss_name=self.metric_fn.__class__.__name__,
+                            val_loss=val_loss,
+                            log_path=log_path
                             )
-                        self.save_log(log_path)
-
-                    else:
-                        if val_loss < self.logger.log['val_loss']:
-                            self.logger.update(
-                                epoch=_+1,
-                                model_state_dict=self.state_dict(),
-                                val_loss=val_loss
-                                )
-                            self.save_log(log_path)
-
-
-        if verbose: print('\n' + '#'*10 + '\n')
 
 class _greedyFeedforward(_baseFeedforward):
     """
@@ -552,6 +558,41 @@ class _greedyFeedforward(_baseFeedforward):
         # freeze all layers. only unfreeze a layer when optimizing it. reduces
         # a lot of unnecessary gradient calculations
 
+    def log_and_save(self, layer_idx, epoch, val_loss_name, val_loss, log_path):
+        if epoch==1: # first epoch 
+            layer_log = {
+                    'epoch' : epoch,
+                    'val_loss_name' : val_loss_name,
+                    'val_loss' : val_loss
+                    }
+            self.logger.update(**{
+                'layer' + str(layer_idx) + '_log' : layer_log,
+                'model_state_dict' : self.state_dict()
+                    })
+            self.save_log(log_path)
+
+        else:
+            if val_loss_name=='CosineSimilarity':
+                update = True if\
+                val_loss>self.logger.log['layer'+str(layer_idx)+'_log']['val_loss']\
+                else False
+            else:
+                update = True if\
+                val_loss<self.logger.log['layer'+str(layer_idx)+'_log']['val_loss']\
+                else False
+ 
+            if update:
+                layer_log = {
+                        'epoch' : epoch,
+                        'val_loss_name' : val_loss_name,
+                        'val_loss' : val_loss
+                        }
+                self.logger.update(**{
+                    'layer' + str(layer_idx) + '_log' : layer_log,
+                    'model_state_dict' : self.state_dict()
+                        })
+                self.save_log(log_path)
+
     def _fit_hidden(
         self,
         n_epoch,
@@ -560,10 +601,10 @@ class _greedyFeedforward(_baseFeedforward):
         accumulate_grad=True,
         val_loader=None,
         val_window=30,
-        write_to=None,
-        end=None,
         keep_grad=False,
         verbose=True,
+        save_best=False,
+        log_path=None
         ):
         """
         Train the hidden layers (all layers but the last).
@@ -628,6 +669,8 @@ class _greedyFeedforward(_baseFeedforward):
         """
 
         # K.ideal_kmtrx() requires label tensor to be of shape (n, 1)
+        if save_best:
+            assert log_path is not None
 
         for i in range(self._layer_counter-1):
             optimizer = getattr(self, 'optimizer'+str(i))
@@ -703,10 +746,28 @@ class _greedyFeedforward(_baseFeedforward):
 
                 if val_loader is not None and (_+1) % val_window==0:
                     # TODO how to get the cosine similarity over an entire test set in batch evaluate mode?
-                    self.evaluate(test_loader=val_loader, 
-                        write_to=write_to, end=end, metric_fn=metric_fn, critic=critic, hidden_val=True,
+                    val_loss = self.evaluate(test_loader=val_loader, 
+                        metric_fn=metric_fn, critic=critic, hidden_val=True,
                             layer=i, n_class=n_class
                     )
+                    # TODO to be deleted, for testing logger
+                    """
+                    with open('test_layerwise_logger_hiddenlr.txt', 'a') as f:
+                        print('epoch: {}/{}, val_loss: {:.6f} \n'.format(
+                            _+1, n_epoch, 
+                            val_loss
+                            ), file=f)
+                    """
+                    # write to log and save it
+                    if save_best:
+                        self.log_and_save(
+                                layer_idx=i, 
+                                epoch=_+1,
+                                val_loss_name=metric_fn.__class__.__name__,
+                                val_loss=val_loss, 
+                                log_path=log_path
+                                )
+
 
 
             if verbose: print('\n' + '#'*10 + '\n')
@@ -720,10 +781,10 @@ class _greedyFeedforward(_baseFeedforward):
         accumulate_grad=True,
         val_loader=None,
         val_window=30,
-        write_to=None,
-        end=None,
         keep_grad=False,
-        verbose=True
+        verbose=True,
+        save_best=False,
+        log_path=None
         ):
         """
         Train the last layer.
@@ -783,6 +844,8 @@ class _greedyFeedforward(_baseFeedforward):
         """
 
         # this model only supports hard class labels
+        if save_best:
+            assert log_path is not None
 
         i = self._layer_counter-1
         optimizer = getattr(self, 'optimizer'+str(i))
@@ -839,10 +902,29 @@ class _greedyFeedforward(_baseFeedforward):
 
             if val_loader is not None and (_+1) % val_window==0:
                 
-                self.evaluate(test_loader=val_loader,
-                    write_to=write_to, end=end, metric_fn=metric_fn
-                    )
+                val_loss = self.evaluate(test_loader=val_loader,
+                    metric_fn=metric_fn
+                    )                    
                 
+                # TODO to be deleted, for testing logger
+                """
+                with open('test_layerwise_logger_outputlr.txt', 'a') as f:
+                    print('epoch: {}/{}, val_loss: {:.6f} \n'.format(
+                        _+1, n_epoch, 
+                        val_loss
+                        ), file=f)
+                """
+                # write to log and save it
+                if save_best:
+                    self.log_and_save(
+                            layer_idx=i, 
+                            epoch=_+1,
+                            val_loss_name=metric_fn.__class__.__name__,
+                            val_loss=val_loss, 
+                            log_path=log_path
+                            )
+
+
             
 
 
@@ -868,8 +950,8 @@ class greedyFeedforward(_greedyFeedforward):
         accumulate_grad=True,
         val_loader=None,
         val_window=30,
-        write_to=None,
-        end=None,
+        save_best=False,
+        log_path=None,
         keep_grad=False,
         verbose=True,
         ):
@@ -953,8 +1035,8 @@ class greedyFeedforward(_greedyFeedforward):
             accumulate_grad=accumulate_grad,
             val_loader=val_loader,
             val_window=val_window,
-            write_to=write_to,
-            end=end,
+            save_best=save_best,
+            log_path=log_path,
             keep_grad=keep_grad,
             verbose=verbose,
             )
@@ -966,8 +1048,8 @@ class greedyFeedforward(_greedyFeedforward):
             accumulate_grad=accumulate_grad,
             val_loader=val_loader,
             val_window=val_window,
-            write_to=write_to,
-            end=end,
+            save_best=save_best,
+            log_path=log_path,
             keep_grad=keep_grad,
             verbose=verbose,
             )

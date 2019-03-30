@@ -6,12 +6,17 @@ import torch
 class Logger:
 
     def __init__(self, ):
+        """
         self.log = {
             'epoch': None,
             'model_state_dict': None,
-            'optimizer_state_dict': None,
+            # not saving the optimizer because it is not intrinsically part of
+            # the model
+            # 'optimizer_state_dict': None,
             'val_loss': None
         }
+        """
+        self.log = {}
 
     def save(self, PATH):
         print('Saving log to {}'.format(PATH))

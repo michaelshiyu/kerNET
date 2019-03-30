@@ -131,11 +131,10 @@ if __name__=='__main__':
             num_workers=2
         )
 
-        # net = greedyFeedforward()
-        net = feedforward()
+        net = greedyFeedforward()
+        # net = feedforward()
 
         # randomly get centers for the kernelized layer
-        """
         dummy_train_loader = torch.utils.data.DataLoader(
             dataset=train,
             batch_size=60000,
@@ -150,30 +149,29 @@ if __name__=='__main__':
             n=n_center2,
             shuffle=True 
             )
-        """
-        # layer1 = LeNet5_conv(1, padding=2) 
-        layer1 = LeNet5(1, padding=2) 
+        
+        layer1 = LeNet5_conv(1, padding=2) 
+        # layer1 = LeNet5(1, padding=2) 
 
         # a kernelized, fully-connected layer. X is the set of centers, n_out is the number of kernel machines on this layer
-        # layer2 = kFullyConnected(X=x_train2, n_out=n_class, kernel='gaussian', sigma=sigma2, bias=True)
-        """
+        layer2 = kFullyConnected(X=x_train2, n_out=n_class, kernel='gaussian', sigma=sigma2, bias=True)
+        
         if ensemble:
             layer2 = layer2.to_ensemble(component_size)
-        """
+        
         # add optimizer to each layer. There is no need to assign each optimizer to the parameters of the corresponding layer manually, this will later be done by the model in net._compile() when you call net.fit(). 
         net.add_optimizer(
             torch.optim.Adam(params=layer1.parameters(), lr=lr1, weight_decay=w_decay1) 
             )
-        """
         net.add_optimizer(
             torch.optim.Adam(params=layer2.parameters(), lr=lr2, weight_decay=w_decay2)
             )
-        """
+        
         # add loss function for the hidden layers
         # for all loss functions except CosineSimilarity, set reduction to 'sum'
         # and kerNET would do the averagings for you and return loss values as if 
         # the loss functions have been set to reduction='mean'
-        """
+        
         if hidden_cost=='alignment': # changing between alignment, l1 and l2 may require re-tuning of the hyperparameters
             net.add_loss(torch.nn.CosineSimilarity())
             net.add_metric(torch.nn.CosineSimilarity()) # metric for validation
@@ -183,15 +181,13 @@ if __name__=='__main__':
         elif hidden_cost=='l1':
             net.add_loss(torch.nn.L1Loss(reduction='sum'))
             net.add_metric(torch.nn.L1Loss(reduction='sum'))
-        """
+        
         # add loss function for the output layer
         net.add_loss(torch.nn.CrossEntropyLoss(reduction='sum'))
         net.add_metric(K.L0Loss(reduction='sum'))
 
         # this specifies how the G_i are computed (see the paper for the definition of G_i)
-        """
         net.add_critic(layer2.phi) # calculate G_1 using kernel k^(2)
-        """
         """
         if torch.cuda.device_count() > 1:
             layer1 = torch.nn.DataParallel(layer1)
@@ -199,7 +195,7 @@ if __name__=='__main__':
             # layer2 = torch.nn.DataParallel(layer2)
         """
         net.add_layer(layer1)
-        # net.add_layer(layer2)
+        net.add_layer(layer2)
 
         #########
         # begin training
@@ -211,23 +207,23 @@ if __name__=='__main__':
             os.mkdir('checkpoint')
 
         net.fit(
-            # n_epoch=(epo1, epo2),
-            n_epoch=30,
+            n_epoch=(epo1, epo2),
+            # n_epoch=30,
             train_loader=train_loader,
-            # n_class=n_class,
+            n_class=n_class,
             accumulate_grad=accumulate_grad,
             # technically we should use a stand-out validation set instead of 
             # the test set, this is just to give you an example of how fit works
             val_loader=test_loader, 
             val_window=1,
             save_best=True,
-            log_path='./checkpoint/test_logger.t7'
+            log_path='./checkpoint/test_logger_layerwise.t7'
             )
-
+        
         net.evaluate(test_loader=test_loader, metric_fn=K.L0Loss(reduction='sum'))
         
-        log = torch.load('checkpoint/test_logger.t7')
-        print(log['epoch'], log['val_loss_name'], log['val_loss'])
+        log = torch.load('checkpoint/test_logger_layerwise.t7')
+        # print(log['epoch'], log['val_loss'])
         net.load_state_dict(log['model_state_dict'])
 
         #########
