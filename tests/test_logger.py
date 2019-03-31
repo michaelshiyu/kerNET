@@ -221,13 +221,14 @@ if __name__=='__main__':
             val_loader=test_loader, 
             val_window=1,
             save_best=True,
-            log_path='./checkpoint/test_logger.t7'
+            logdir='./checkpoint/test_logger.t7'
             )
 
         net.evaluate(test_loader=test_loader, metric_fn=K.L0Loss(reduction='sum'))
         
         log = torch.load('checkpoint/test_logger.t7')
-        print(log['epoch'], log['val_loss_name'], log['val_loss'])
+        print(log['epoch'], log['val_loss_name'], log['val_loss'],
+        log['optimizer_name'], log['optimizer_state_dict'], log.keys())
         net.load_state_dict(log['model_state_dict'])
 
         #########

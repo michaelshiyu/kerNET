@@ -69,6 +69,15 @@ class _baseFeedforward(torch.nn.Module):
         assert isinstance(metric_fn, torch.nn.modules.loss._Loss)
         setattr(self, 'metric_fn', metric_fn)
 
+    def add_optimizer(self, optimizer):
+        """
+        One optimizer for the entire model. But this of course supports those
+        fancy per-parameter options from PyTorch.
+        """
+        assert isinstance(optimizer, torch.optim.Optimizer)
+        setattr(self, 'optimizer', optimizer)
+
+
     def forward(self, x, upto=None, update_X=False):
         """
         Feedforward upto layer 'upto'. If 'upto' is not passed,
@@ -150,12 +159,6 @@ class _baseFeedforward(torch.nn.Module):
             y_previous = y
 
         return y
-
-    def get_repr(self, data_loader, layer=None):
-        '''
-        forward method with support for PyTorch's data_loader.
-        '''
-        pass
 
     def evaluate(self, test_loader, metric_fn=None, critic=None, 
         hidden_val=False, n_class=None, layer=None, batch_size=None, 
@@ -309,33 +312,29 @@ class feedforward(_baseFeedforward):
     Wrap this around any feedforward network in PyTorch, then you can use its helper functions such as fit, evaluate, etc. to streamline your code.
     Trained with backpropagation.
     """
-    def add_optimizer(self, optimizer):
-        """
-        One optimizer for the entire model. But this of course supports those
-        fancy per-parameter options from PyTorch.
-        """
-        assert isinstance(optimizer, torch.optim.Optimizer)
-        setattr(self, 'optimizer', optimizer)
-
-    def log_and_save(self, epoch, val_loss_name, val_loss, log_path):
+    def log_and_save(self, epoch, val_loss, logdir):
         if epoch==1: # first epoch
             self.logger.update(
                 epoch=epoch,
                 model_state_dict=self.state_dict(),
-                val_loss_name=val_loss_name,
+                optimizer_name=self.optimizer.__class__.__name__,
+                optimizer_state_dict=self.optimizer.state_dict(),
+                val_loss_name=self.metric_fn.__class__.__name__,
                 val_loss=val_loss
                 )
-            self.save_log(log_path)
+            self.save_log(logdir)
 
         else:
             if val_loss < self.logger.log['val_loss']:
                 self.logger.update(
                     epoch=epoch,
                     model_state_dict=self.state_dict(),
-                    val_loss_name=val_loss_name,
+                    optimizer_name=self.optimizer.__class__.__name__,
+                    optimizer_state_dict=self.optimizer.state_dict(),
+                    val_loss_name=self.metric_fn.__class__.__name__,
                     val_loss=val_loss
                     )
-                self.save_log(log_path)
+                self.save_log(logdir)
 
     def fit(
         self,
@@ -346,7 +345,7 @@ class feedforward(_baseFeedforward):
         val_window=30,
         verbose=True,
         save_best=False,
-        log_path=None
+        logdir=None
         ):
         """
         Train the model on some data.
@@ -398,7 +397,9 @@ class feedforward(_baseFeedforward):
         last_batch = bool(X.shape[0] % batch_size)
         '''
         if save_best:
-            assert log_path is not None
+            assert logdir is not None
+        n_batch = len(train_loader)
+
         # unfreeze the model
         for param in self.parameters(): param.requires_grad_(True) 
         for _ in range(n_epoch):
@@ -416,8 +417,8 @@ class feedforward(_baseFeedforward):
                 loss = self.loss_fn(output, y) / x.size(0)
 
                 if verbose:
-                    print('epoch: {}/{}, batch: {}, loss({}): {:.6f}'.format(
-                        _+1, n_epoch, __,
+                    print('epoch: {}/{}, batch: {}/{}, loss({}): {:.6f}'.format(
+                        _+1, n_epoch, __+1, n_batch,
                         self.loss_fn.__class__.__name__,
                         loss.item()
                         ))
@@ -460,9 +461,8 @@ class feedforward(_baseFeedforward):
                 if save_best:
                     self.log_and_save(
                             epoch=_+1,
-                            val_loss_name=self.metric_fn.__class__.__name__,
                             val_loss=val_loss,
-                            log_path=log_path
+                            logdir=logdir
                             )
 
 class _greedyFeedforward(_baseFeedforward):
@@ -558,20 +558,26 @@ class _greedyFeedforward(_baseFeedforward):
         # freeze all layers. only unfreeze a layer when optimizing it. reduces
         # a lot of unnecessary gradient calculations
 
-    def log_and_save(self, layer_idx, epoch, val_loss_name, val_loss, log_path):
-        if epoch==1: # first epoch 
+    def log_and_save(self, layer_idx, epoch, val_loss, logdir):
+        if epoch==1: # first epoch  
             layer_log = {
                     'epoch' : epoch,
-                    'val_loss_name' : val_loss_name,
+                    'optimizer_name' : getattr(self,
+                        'optimizer'+str(layer_idx)).__class__.__name__,
+                    'optimizer_state_dict' : getattr(self,
+                        'optimizer'+str(layer_idx)).state_dict(),
+                    'val_loss_name' : getattr(self,
+                        'metric_fn'+str(layer_idx)).__class__.__name__,
                     'val_loss' : val_loss
                     }
             self.logger.update(**{
                 'layer' + str(layer_idx) + '_log' : layer_log,
                 'model_state_dict' : self.state_dict()
                     })
-            self.save_log(log_path)
+            self.save_log(logdir)
 
         else:
+            val_loss_name = getattr(self, 'metric_fn'+str(layer_idx)).__class__.__name__
             if val_loss_name=='CosineSimilarity':
                 update = True if\
                 val_loss>self.logger.log['layer'+str(layer_idx)+'_log']['val_loss']\
@@ -581,9 +587,13 @@ class _greedyFeedforward(_baseFeedforward):
                 val_loss<self.logger.log['layer'+str(layer_idx)+'_log']['val_loss']\
                 else False
  
-            if update:
+            if update: 
                 layer_log = {
                         'epoch' : epoch,
+                        'optimizer_name' : getattr(self,
+                            'optimizer'+str(layer_idx)).__class__.__name__,
+                        'optimizer_state_dict' : getattr(self,
+                            'optimizer'+str(layer_idx)).state_dict(),
                         'val_loss_name' : val_loss_name,
                         'val_loss' : val_loss
                         }
@@ -591,7 +601,7 @@ class _greedyFeedforward(_baseFeedforward):
                     'layer' + str(layer_idx) + '_log' : layer_log,
                     'model_state_dict' : self.state_dict()
                         })
-                self.save_log(log_path)
+                self.save_log(logdir)
 
     def _fit_hidden(
         self,
@@ -604,7 +614,7 @@ class _greedyFeedforward(_baseFeedforward):
         keep_grad=False,
         verbose=True,
         save_best=False,
-        log_path=None
+        logdir=None
         ):
         """
         Train the hidden layers (all layers but the last).
@@ -670,7 +680,8 @@ class _greedyFeedforward(_baseFeedforward):
 
         # K.ideal_kmtrx() requires label tensor to be of shape (n, 1)
         if save_best:
-            assert log_path is not None
+            assert logdir is not None
+        n_batch = len(train_loader)
 
         for i in range(self._layer_counter-1):
             optimizer = getattr(self, 'optimizer'+str(i))
@@ -715,14 +726,14 @@ class _greedyFeedforward(_baseFeedforward):
 
                     if verbose:
                         if loss_fn.__class__.__name__=='CosineSimilarity':
-                            print('epoch: {}/{}, batch: {}, loss({}): {:.6f}'.format(
-                                _+1, n_epoch[i], __,
+                            print('epoch: {}/{}, batch: {}/{}, loss({}): {:.6f}'.format(
+                                _+1, n_epoch[i], __+1, n_batch,
                                 'Alignment',
                                 -loss.item()
                                 ))
                         else:
-                            print('epoch: {}/{}, batch: {}, loss({}): {:.6f}'.format(
-                                _+1, n_epoch[i], __,
+                            print('epoch: {}/{}, batch: {}/{}, loss({}): {:.6f}'.format(
+                                _+1, n_epoch[i], __+1, n_batch,
                                 loss_fn.__class__.__name__,
                                 loss.item()
                                 ))
@@ -763,9 +774,8 @@ class _greedyFeedforward(_baseFeedforward):
                         self.log_and_save(
                                 layer_idx=i, 
                                 epoch=_+1,
-                                val_loss_name=metric_fn.__class__.__name__,
                                 val_loss=val_loss, 
-                                log_path=log_path
+                                logdir=logdir
                                 )
 
 
@@ -784,7 +794,7 @@ class _greedyFeedforward(_baseFeedforward):
         keep_grad=False,
         verbose=True,
         save_best=False,
-        log_path=None
+        logdir=None
         ):
         """
         Train the last layer.
@@ -845,7 +855,8 @@ class _greedyFeedforward(_baseFeedforward):
 
         # this model only supports hard class labels
         if save_best:
-            assert log_path is not None
+            assert logdir is not None
+        n_batch = len(train_loader)
 
         i = self._layer_counter-1
         optimizer = getattr(self, 'optimizer'+str(i))
@@ -879,8 +890,8 @@ class _greedyFeedforward(_baseFeedforward):
                 # optimizer
 
                 if verbose:
-                    print('epoch: {}/{}, batch: {}, loss({}): {:.6f}'.format(
-                        _+1, n_epoch[i], __,
+                    print('epoch: {}/{}, batch: {}/{}, loss({}): {:.6f}'.format(
+                        _+1, n_epoch[i], __+1, n_batch,
                         loss_fn.__class__.__name__,
                         loss.item()
                         ))
@@ -919,9 +930,8 @@ class _greedyFeedforward(_baseFeedforward):
                     self.log_and_save(
                             layer_idx=i, 
                             epoch=_+1,
-                            val_loss_name=metric_fn.__class__.__name__,
                             val_loss=val_loss, 
-                            log_path=log_path
+                            logdir=logdir
                             )
 
 
@@ -951,7 +961,7 @@ class greedyFeedforward(_greedyFeedforward):
         val_loader=None,
         val_window=30,
         save_best=False,
-        log_path=None,
+        logdir=None,
         keep_grad=False,
         verbose=True,
         ):
@@ -1036,7 +1046,7 @@ class greedyFeedforward(_greedyFeedforward):
             val_loader=val_loader,
             val_window=val_window,
             save_best=save_best,
-            log_path=log_path,
+            logdir=logdir,
             keep_grad=keep_grad,
             verbose=verbose,
             )
@@ -1049,7 +1059,7 @@ class greedyFeedforward(_greedyFeedforward):
             val_loader=val_loader,
             val_window=val_window,
             save_best=save_best,
-            log_path=log_path,
+            logdir=logdir,
             keep_grad=keep_grad,
             verbose=verbose,
             )
