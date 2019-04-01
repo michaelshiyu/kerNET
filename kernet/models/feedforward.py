@@ -400,6 +400,14 @@ class feedforward(_baseFeedforward):
             assert logdir is not None
         n_batch = len(train_loader)
 
+        assert n_epoch>=0
+        if n_epoch==0:
+            # no training, but needs to update X for upper layers
+            for x, y in train_loader:
+                self(x, update_X=True)
+                break
+            return
+
         # unfreeze the model
         for param in self.parameters(): param.requires_grad_(True) 
         for _ in range(n_epoch):
@@ -689,11 +697,21 @@ class _greedyFeedforward(_baseFeedforward):
             metric_fn = getattr(self, 'metric_fn'+str(i))
             critic = getattr(self, 'critic'+str(i))
             layer = getattr(self, 'layer'+str(i))
+            
+            layer_epoch = n_epoch[i]
+            assert layer_epoch>=0
+            if layer_epoch==0:
+                for x, y in train_loader:
+                    self(x, upto=i, update_X=True)
+                    break
+                
+                if verbose: print('\n' + 'layer' + str(i) + ' training complete' + '\n')
+                continue
 
             # unfreeze this layer
             for param in layer.parameters(): param.requires_grad_(True)
 
-            for _ in range(n_epoch[i]): 
+            for _ in range(layer_epoch): 
                 optimizer.zero_grad()
 
                 for __, (x, y) in enumerate(train_loader):
@@ -727,13 +745,13 @@ class _greedyFeedforward(_baseFeedforward):
                     if verbose:
                         if loss_fn.__class__.__name__=='CosineSimilarity':
                             print('epoch: {}/{}, batch: {}/{}, loss({}): {:.6f}'.format(
-                                _+1, n_epoch[i], __+1, n_batch,
+                                _+1, layer_epoch, __+1, n_batch,
                                 'Alignment',
                                 -loss.item()
                                 ))
                         else:
                             print('epoch: {}/{}, batch: {}/{}, loss({}): {:.6f}'.format(
-                                _+1, n_epoch[i], __+1, n_batch,
+                                _+1, layer_epoch, __+1, n_batch,
                                 loss_fn.__class__.__name__,
                                 loss.item()
                                 ))
@@ -780,7 +798,8 @@ class _greedyFeedforward(_baseFeedforward):
 
 
 
-            if verbose: print('\n' + '#'*10 + '\n')
+
+            if verbose: print('\n' + 'layer' + str(i) + ' training complete' + '\n')
             # freeze this layer again
             for param in layer.parameters(): param.requires_grad_(False) 
 
@@ -863,10 +882,21 @@ class _greedyFeedforward(_baseFeedforward):
         layer = getattr(self, 'layer'+str(i))
         loss_fn = getattr(self, 'loss_fn'+str(i))
         metric_fn = getattr(self, 'metric_fn'+str(i))
+        
+        layer_epoch = n_epoch[i]
+        assert layer_epoch>=0
+        if layer_epoch==0:
+            for x, y in train_loader:
+                self(x, upto=i, update_X=True)
+                break
+
+
+            if verbose: print('\n' + 'layer' + str(i) + ' training complete' + '\n')
+            return
 
         # unfreeze this layer
         for param in layer.parameters(): param.requires_grad_(True) 
-        for _ in range(n_epoch[i]):
+        for _ in range(layer_epoch):
 
             optimizer.zero_grad()
             for __, (x, y) in enumerate(train_loader):
@@ -891,7 +921,7 @@ class _greedyFeedforward(_baseFeedforward):
 
                 if verbose:
                     print('epoch: {}/{}, batch: {}/{}, loss({}): {:.6f}'.format(
-                        _+1, n_epoch[i], __+1, n_batch,
+                        _+1, layer_epoch, __+1, n_batch,
                         loss_fn.__class__.__name__,
                         loss.item()
                         ))
@@ -938,7 +968,8 @@ class _greedyFeedforward(_baseFeedforward):
             
 
 
-        if verbose: print('\n' + '#'*10 + '\n')
+        
+        if verbose: print('\n' + 'layer' + str(i) + ' training complete' + '\n')
         # freeze this layer again
         for param in layer.parameters(): param.requires_grad_(False) 
 
@@ -1050,7 +1081,6 @@ class greedyFeedforward(_greedyFeedforward):
             keep_grad=keep_grad,
             verbose=verbose,
             )
-        if verbose: print('\nHidden layers trained.\n')
 
         self._fit_output(
             n_epoch,
@@ -1063,7 +1093,6 @@ class greedyFeedforward(_greedyFeedforward):
             keep_grad=keep_grad,
             verbose=verbose,
             )
-        if verbose: print('\nOutput layer trained.\n')
 
 if __name__=='__main__':
     pass
