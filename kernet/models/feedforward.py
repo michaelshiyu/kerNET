@@ -219,6 +219,7 @@ class _baseFeedforward(torch.nn.Module):
         X_eval : Tensor, shape (n_example, layer_dim)
             Hidden representation of X_test at the given layer.
         """
+        self.eval()
         with torch.no_grad():
 
             if layer is None: layer=self._layer_counter-1
@@ -396,6 +397,7 @@ class feedforward(_baseFeedforward):
         n_batch = X.shape[0] // batch_size
         last_batch = bool(X.shape[0] % batch_size)
         '''
+        self.train()
         if save_best:
             assert logdir is not None
         n_batch = len(train_loader)
@@ -1068,6 +1070,7 @@ class greedyFeedforward(_greedyFeedforward):
             use the gradient for some reason.
         """
         assert len(n_epoch) >= self._layer_counter
+        self.train()
         self._compile()
         self._fit_hidden(
             n_epoch,
