@@ -1,1 +1,1 @@
-﻿# 05/12/2020 A completely re-designed kerNET is coming soon! If you are looking for the old legacy version, please see ```/legacy/```. 
+﻿### 05/12/2020 A completely re-designed kerNET is coming soon! If you are looking for the old legacy version, please see [```/legacy/```](https://github.com/michaelshiyu/kerNET/tree/master/legacy). 
