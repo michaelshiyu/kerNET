@@ -9,3 +9,12 @@
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 
 The code is released for academic research use only.
+
+## Installation
+```angular2
+pip install -r requirements.txt
+pip install .
+
+# or if you want developer install
+pip install -e .
+```
