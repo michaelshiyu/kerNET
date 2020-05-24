@@ -14,7 +14,7 @@
 ## License
 ©Copyright 2020 University of Florida Research Foundation, Inc. All rights reserved.
 
-Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
+Licensed under the [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode) license.
 
 The code is released for academic research use only.
 
