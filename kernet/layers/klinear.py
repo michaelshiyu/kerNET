@@ -4,8 +4,8 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 import torch
 
-import kernet_future.utils as utils
-from kernet_future.layers.kcore import Phi
+import kernet.utils as utils
+from kernet.layers.kcore import Phi
 
 
 class _kLayer(torch.nn.Module):

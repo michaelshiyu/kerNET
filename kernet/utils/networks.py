@@ -8,8 +8,8 @@ import logging
 import torch
 
 from .misc import INF
-from kernet_future import datasets
-from kernet_future.layers.klinear import kLinear, kLinearCommittee
+from kernet import datasets
+from kernet.layers.klinear import kLinear, kLinearCommittee
 
 
 logger = logging.getLogger()
@@ -128,7 +128,7 @@ def attach_head(model, opt):
   if not getattr(opt, 'use_proj_head', None):
     return model
 
-  from kernet_future.models import Flatten
+  from kernet.models import Flatten
 
   device = next(model.parameters()).device
   dummy_input = torch.randn((1,) + eval(opt.data_shape)).to(device)

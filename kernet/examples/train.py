@@ -4,13 +4,13 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 import torch
 
-import kernet_future.models as models
-import kernet_future.datasets as datasets
-import kernet_future.utils as utils
-from kernet_future.engines import train
-from kernet_future.parsers import TrainParser
-from kernet_future.trainers.trainer import Trainer
-from kernet_future.trainers.adversarial_trainer import AdversarialTrainer
+import kernet.models as models
+import kernet.datasets as datasets
+import kernet.utils as utils
+from kernet.engines import train
+from kernet.parsers import TrainParser
+from kernet.trainers.trainer import Trainer
+from kernet.trainers.adversarial_trainer import AdversarialTrainer
 
 
 def modify_commandline_options(parser, **kwargs):

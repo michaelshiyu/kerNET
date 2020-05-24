@@ -4,8 +4,8 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 import torch.nn as nn
 
-from kernet_future.models import Normalize
-from kernet_future.models.resnet import ResNet
+from kernet.models import Normalize
+from kernet.models.resnet import ResNet
 
 
 class ResNetN(ResNet):

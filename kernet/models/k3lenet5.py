@@ -4,9 +4,9 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 import logging
 
-import kernet_future.utils as utils
-from kernet_future.models.klenet5 import  kLeNet5
-from kernet_future.layers.klinear import _kLayer, kLinear
+import kernet.utils as utils
+from kernet.models.klenet5 import  kLeNet5
+from kernet.layers.klinear import _kLayer, kLinear
 
 
 logger = logging.getLogger()

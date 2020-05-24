@@ -7,7 +7,7 @@ import functools
 import torch
 from torch.nn.modules.loss import _Loss
 
-import kernet_future.utils as utils
+import kernet.utils as utils
 
 
 class SRSLoss(_Loss):

@@ -8,10 +8,10 @@ import logging
 
 import torch
 
-import kernet_future.utils as utils
-import kernet_future.models as models
-import kernet_future.datasets as datasets
-from kernet_future.parsers import TestParser
+import kernet.utils as utils
+import kernet.models as models
+import kernet.datasets as datasets
+from kernet.parsers import TestParser
 
 
 def test(opt, net, loader):

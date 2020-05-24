@@ -10,7 +10,7 @@ import torch
 
 from cleverhans.future.torch.utils import optimize_linear
 from cleverhans.future.torch.utils import clip_eta
-from kernet_future.trainers.trainer import Trainer
+from kernet.trainers.trainer import Trainer
 
 
 logger = logging.getLogger()

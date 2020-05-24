@@ -6,14 +6,14 @@ Modular training example.
 """
 import torch
 
-import kernet_future.utils as utils
-import kernet_future.models as models
-import kernet_future.layers.loss as losses
-import kernet_future.datasets as datasets
-from kernet_future.parsers import TrainParser
-from kernet_future.trainers.trainer import Trainer
-from kernet_future.engines import train_hidden, train_output
-from kernet_future.trainers.adversarial_trainer import AdversarialTrainer
+import kernet.utils as utils
+import kernet.models as models
+import kernet.layers.loss as losses
+import kernet.datasets as datasets
+from kernet.parsers import TrainParser
+from kernet.trainers.trainer import Trainer
+from kernet.engines import train_hidden, train_output
+from kernet.trainers.adversarial_trainer import AdversarialTrainer
 
 
 loss_names = ['srs_raw', 'srs_nmse', 'srs_alignment', 'srs_upper_tri_alignment', 'srs_contrastive', 'srs_log_contrastive']

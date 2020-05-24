@@ -10,7 +10,7 @@ import importlib
 
 import torch
 
-import kernet_future.utils as utils
+import kernet.utils as utils
 
 
 logger = logging.getLogger()
@@ -52,7 +52,7 @@ def find_model_using_name(model_name):
   be instantiated. It has to be a subclass of torch.nn.Module,
   and it is not case-insensitive.
   """
-  model_filename = "kernet_future.models." + model_name
+  model_filename = "kernet.models." + model_name
   modellib = importlib.import_module(model_filename)
   model = None
   target_model_name = model_name.replace('_', '')
@@ -90,7 +90,7 @@ def get_model(opt):
   # check if model contains kernelized components that need centers
   from inspect import signature
   if signature(model).parameters.get('centers'):
-    from kernet_future import utils
+    from kernet import utils
     centers = utils.get_centers(opt)
     instance = model(opt, centers)
   else:

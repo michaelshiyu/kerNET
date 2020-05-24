@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from kernet_future.models import Flatten
+from kernet.models import Flatten
 
 
 class _ResNet(torch.nn.Module):

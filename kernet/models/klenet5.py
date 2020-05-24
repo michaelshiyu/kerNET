@@ -7,9 +7,9 @@ import functools
 
 import torch
 
-import kernet_future.utils as utils
-from kernet_future.models import Flatten
-from kernet_future.layers.klinear import _kLayer
+import kernet.utils as utils
+from kernet.models import Flatten
+from kernet.layers.klinear import _kLayer
 
 
 logger = logging.getLogger()

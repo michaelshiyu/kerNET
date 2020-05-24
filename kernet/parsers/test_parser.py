@@ -2,8 +2,8 @@
 ©Copyright 2020 University of Florida Research Foundation, Inc. All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
-import kernet_future.utils as utils
-from kernet_future.parsers.base_parser import BaseParser
+import kernet.utils as utils
+from kernet.parsers.base_parser import BaseParser
 
 class TestParser(BaseParser):
   def initialize(self, parser):

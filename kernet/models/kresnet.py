@@ -9,9 +9,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import kernet_future.utils as utils
-from kernet_future.layers.klinear import _kLayer, kLinear
-from kernet_future.models.resnet import BasicBlock, Bottleneck, ResNet
+import kernet.utils as utils
+from kernet.layers.klinear import _kLayer, kLinear
+from kernet.models.resnet import BasicBlock, Bottleneck, ResNet
 
 
 logger = logging.getLogger()

@@ -13,9 +13,9 @@ import logging
 import argparse
 import importlib
 
-import kernet_future.utils as utils
-import kernet_future.models as models
-import kernet_future.datasets as datasets
+import kernet.utils as utils
+import kernet.models as models
+import kernet.datasets as datasets
 
 
 class BaseParser:

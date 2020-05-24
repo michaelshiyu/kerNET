@@ -2,8 +2,8 @@
 ©Copyright 2020 University of Florida Research Foundation, Inc. All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
-from kernet_future.models.kresnet import kResNet
-from kernet_future.models.resnet import Bottleneck
+from kernet.models.kresnet import kResNet
+from kernet.models.resnet import Bottleneck
 
 
 class kResNet152(kResNet):

@@ -8,7 +8,7 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 
-from kernet_future import utils
+from kernet import utils
 
 logger = logging.getLogger()
 

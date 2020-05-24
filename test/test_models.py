@@ -8,15 +8,15 @@ from easydict import EasyDict as edict
 
 import torch
 
-from kernet_future.models import Normalize
-from kernet_future.models.resnet18 import ResNet18
-from kernet_future.models.resnet34 import ResNet34
-from kernet_future.models.resnet50 import ResNet50
-from kernet_future.models.resnet101 import ResNet101
-from kernet_future.models.resnet152 import ResNet152
-from kernet_future.models.resnet18n import ResNet18N
-from kernet_future.models.resnet34n import ResNet34N
-from kernet_future.models.resnet50n import ResNet50N
+from kernet.models import Normalize
+from kernet.models.resnet18 import ResNet18
+from kernet.models.resnet34 import ResNet34
+from kernet.models.resnet50 import ResNet50
+from kernet.models.resnet101 import ResNet101
+from kernet.models.resnet152 import ResNet152
+from kernet.models.resnet18n import ResNet18N
+from kernet.models.resnet34n import ResNet34N
+from kernet.models.resnet50n import ResNet50N
 from kernet_future.models.resnet101n import ResNet101N
 from kernet_future.models.resnet152n import ResNet152N
 from kernet_future.models.kresnet18 import kResNet18
