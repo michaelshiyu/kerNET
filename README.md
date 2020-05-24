@@ -3,6 +3,14 @@
 
 # kerNET
 
+## Table of Contents
+1. [License](#license) 
+1. [Installation](#installation)
+1. [Testing](#testing)
+1. [What Is kerNET For?](#what-is-kernet-for)
+1. [Highlights](#highlights)
+1. [List of Tutorials](#list-of-tutorials)
+
 ## License
 ©Copyright 2020 University of Florida Research Foundation, Inc. All rights reserved.
 
@@ -18,3 +26,24 @@ pip install .
 # or if you want developer install
 pip install -e .
 ```
+
+## Testing
+We recommend using ```pytest``` for testing.
+To run the test suites with ```pytest```, do
+```angular2
+pip install pytest
+pytest test/
+```
+Note that some of the tests are computationally intensive as they involve training/testing networks and should therefore be executed on GPUs.
+
+## What Is kerNET For?
+
+TODO
+
+## Highlights
+
+TODO
+
+## List of Tutorials
+
+TODO
