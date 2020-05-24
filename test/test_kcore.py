@@ -10,8 +10,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-import kernet_future.utils as utils
-from kernet_future.layers.kcore import Phi
+import kernet.utils as utils
+from kernet.layers.kcore import Phi
 
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'  # fix an OMP bug on MacOS

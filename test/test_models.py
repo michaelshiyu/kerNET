@@ -17,13 +17,13 @@ from kernet.models.resnet152 import ResNet152
 from kernet.models.resnet18n import ResNet18N
 from kernet.models.resnet34n import ResNet34N
 from kernet.models.resnet50n import ResNet50N
-from kernet_future.models.resnet101n import ResNet101N
-from kernet_future.models.resnet152n import ResNet152N
-from kernet_future.models.kresnet18 import kResNet18
-from kernet_future.models.kresnet34 import kResNet34
-from kernet_future.models.kresnet50 import kResNet50
-from kernet_future.models.kresnet101 import kResNet101
-from kernet_future.models.kresnet152 import kResNet152
+from kernet.models.resnet101n import ResNet101N
+from kernet.models.resnet152n import ResNet152N
+from kernet.models.kresnet18 import kResNet18
+from kernet.models.kresnet34 import kResNet34
+from kernet.models.kresnet50 import kResNet50
+from kernet.models.kresnet101 import kResNet101
+from kernet.models.kresnet152 import kResNet152
 
 
 class ModelsTest(unittest.TestCase):

@@ -8,7 +8,7 @@ import numpy as np
 
 import torch
 
-import kernet_future.utils as utils
+import kernet.utils as utils
 
 
 class UtilsTest(unittest.TestCase):

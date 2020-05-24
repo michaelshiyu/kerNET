@@ -4,7 +4,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 import torch
 
-from kernet_future.trainers.base_trainer import BaseTrainer
+from kernet.trainers.base_trainer import BaseTrainer
 
 
 class Trainer(BaseTrainer):

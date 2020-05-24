@@ -8,10 +8,10 @@ import numpy as np
 
 import torch
 
-import kernet_future.utils as utils
-from kernet_future.models import Normalize, Flatten
-from kernet_future.layers.loss import SRSLoss
-from kernet_future.layers.klinear import kLinear
+import kernet.utils as utils
+from kernet.models import Normalize, Flatten
+from kernet.layers.loss import SRSLoss
+from kernet.layers.klinear import kLinear
 
 
 class kLinearLayerTest(unittest.TestCase):

@@ -3,7 +3,7 @@
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
 from kernet.models.resnetn import ResNetN
-from kernet_future.models.resnet import Bottleneck
+from kernet.models.resnet import Bottleneck
 
 
 class ResNet101N(ResNetN):

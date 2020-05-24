@@ -4,8 +4,8 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 import unittest
 
-from kernet_future.layers.loss import *
-from kernet_future.layers.kcore import Phi
+from kernet.layers.loss import *
+from kernet.layers.kcore import Phi
 
 
 class SRSLossTest(unittest.TestCase):
