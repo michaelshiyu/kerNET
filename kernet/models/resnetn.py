@@ -9,14 +9,16 @@ from kernet.models.resnet import ResNet
 
 
 class ResNetN(ResNet):
-  """
-  ResNetN(ormalized).
+    """
+    ResNetN(ormalized).
 
-  Have the last fc layer of ResNet normalize its input to unit norm.
-  """
-  def __init__(self, *args, **kwargs):
-    super(ResNetN, self).__init__(*args, **kwargs)
-    self.layer5 = nn.Sequential(
-      self.layer5,
-      Normalize()
-    )
+    Have the last fc layer of ResNet normalize its input to unit norm.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(ResNetN, self).__init__(*args, **kwargs)
+        self.layer5 = nn.Sequential(
+            self.layer5,
+            Normalize()
+        )
+        self.print_network(self)

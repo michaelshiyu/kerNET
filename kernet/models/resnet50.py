@@ -6,5 +6,7 @@ from kernet.models.resnet import Bottleneck, ResNet
 
 
 class ResNet50(ResNet):
-  def __init__(self, opt):
-    super(ResNet50, self).__init__(Bottleneck, [3, 4, 6, 3], num_classes=opt.n_classes)
+    def __init__(self, opt):
+        super(ResNet50, self).__init__(Bottleneck, [
+            3, 4, 6, 3], in_channels=opt.in_channels, num_classes=opt.n_classes)
+        self.print_network(self)

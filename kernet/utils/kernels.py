@@ -9,63 +9,64 @@ from .misc import *
 
 
 def gaussian_phi_fn_indir(input, centers, sigma, **kwargs):
-  """
-  Gaussian kernel (indirect):
-    k(x, y) = exp(-||x-y||_2^2 / (2 * sigma^2));
-    x -> (k(c_1, x), ..., k(c_m, x)), c_i \in centers, \forall i.
-  """
-  input = centers.sub(input.unsqueeze(1)).pow(2).view(input.size(0), centers.size(0), -1)
-  input = input.sum(dim=-1).mul(-1./(2*sigma**2)).exp()
-  return input
+    """
+    Gaussian kernel (indirect):
+      k(x, y) = exp(-||x-y||_2^2 / (2 * sigma^2));
+      x -> (k(c_1, x), ..., k(c_m, x)), c_i \in centers, \forall i.
+    """
+    input = centers.sub(input.unsqueeze(1)).pow(
+        2).view(input.size(0), centers.size(0), -1)
+    input = input.sum(dim=-1).mul(-1./(2*sigma**2)).exp()
+    return input
 
 
 def poly2_phi_fn_dir(input, **kwargs):
-  """
-  Polynomial kernel of order 2 (direct)
-  """
-  # TODO
-  raise NotImplementedError()
+    """
+    Polynomial kernel of order 2 (direct)
+    """
+    # TODO is unbounded so no k_min or k_max. Implement?
+    raise NotImplementedError()
 
 
 def nn_tanh_phi_fn_dir(input, **kwargs):
-  """
-  Shape:
-    input: (n_examples, d)
-  """
-  output = torch.tanh(input)
-  # make sure any nonzero \phi(x) is of unit norm
-  return to_unit_vector(output)
+    """
+    Shape:
+      input: (n_examples, d)
+    """
+    output = torch.tanh(input)
+    # make sure any nonzero \phi(x) is of unit norm
+    return to_unit_vector(output)
 
 
 def nn_sigmoid_phi_fn_dir(input, **kwargs):
-  """
-  Shape:
-    input: (n_examples, d)
-  """
-  output = torch.sigmoid(input)
-  # make sure any nonzero \phi(x) is of unit norm
-  return to_unit_vector(output)
+    """
+    Shape:
+      input: (n_examples, d)
+    """
+    output = torch.sigmoid(input)
+    # make sure any nonzero \phi(x) is of unit norm
+    return to_unit_vector(output)
 
 
 def nn_relu_phi_fn_dir(input, **kwargs):
-  """
-  Shape:
-    input: (n_examples, d)
-  """
-  output = F.relu(input)
-  # make sure any nonzero \phi(x) is of unit norm
-  return to_unit_vector(output)
+    """
+    Shape:
+      input: (n_examples, d)
+    """
+    output = F.relu(input)
+    # make sure any nonzero \phi(x) is of unit norm
+    return to_unit_vector(output)
 
 
 def nn_reapen_phi_fn_dir(input, **kwargs):
-  """
-  ReLU + average pool 2D + flatten.
+    """
+    ReLU + average pool 2D + flatten.
 
-  Shape:
-    input: (n_examples, d1, d2, d3)
-  """
-  output = F.relu(input)
-  output = F.avg_pool2d(output, 4)
-  output = output.view(output.size(0), -1)
-  # make sure any nonzero \phi(x) is of unit norm
-  return to_unit_vector(output)
+    Shape:
+      input: (n_examples, d1, d2, d3)
+    """
+    output = F.relu(input)
+    output = F.avg_pool2d(output, 4)
+    output = output.view(output.size(0), -1)
+    # make sure any nonzero \phi(x) is of unit norm
+    return to_unit_vector(output)

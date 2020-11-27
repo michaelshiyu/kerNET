@@ -7,5 +7,6 @@ from kernet.models.resnet import BasicBlock
 
 
 class ResNet34N(ResNetN):
-  def __init__(self, opt):
-    super(ResNet34N, self).__init__(BasicBlock, [3, 4, 6, 3], num_classes=opt.n_classes)
+    def __init__(self, opt):
+        super(ResNet34N, self).__init__(BasicBlock, [
+            3, 4, 6, 3], in_channels=opt.in_channels, num_classes=opt.n_classes)

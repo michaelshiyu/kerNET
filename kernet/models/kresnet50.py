@@ -7,6 +7,8 @@ from kernet.models.resnet import Bottleneck
 
 
 class kResNet50(kResNet):
-  def __init__(self, opt, centers=None):
-    super(kResNet50, self).__init__(opt, centers,
-      block=Bottleneck, num_blocks=[3, 4, 6, 3], num_classes=opt.n_classes)
+    def __init__(self, opt, centers=None):
+        super(kResNet50, self).__init__(opt, centers,
+                                        block=Bottleneck, num_blocks=[
+                                            3, 4, 6, 3],
+                                        in_channels=opt.in_channels, num_classes=opt.n_classes)

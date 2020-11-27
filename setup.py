@@ -12,6 +12,7 @@ setup(
     description=("Connectionist models powered by kernel machines."),
     license="CC BY-NC-SA 4.0",
     url="https://github.com/michaelshiyu/kernet",
-    long_description=open(os.path.join(os.path.dirname(__file__), "README.md"), encoding='utf-8').read(),
+    long_description=open(os.path.join(os.path.dirname(
+        __file__), "README.md"), encoding='utf-8').read(),
     packages=find_packages(),
 )
