@@ -116,8 +116,6 @@ def _srs_raw(phi, n_classes, neo):
         map_input=map_input,
         map_target=map_target,
         loss=loss_fn,
-        phi=phi,
-        ut=False
     )
 
 
@@ -142,8 +140,6 @@ def _srs_nmse(phi, n_classes, neo):
         map_input=map_input,
         map_target=map_target,
         loss=loss_fn,
-        phi=phi,
-        ut=False
     )
 
 
@@ -171,8 +167,6 @@ def _srs_alignment(phi, n_classes, neo):
         map_input=map_input,
         map_target=map_target,
         loss=loss_fn,
-        phi=phi,
-        ut=False
     )
 
 
@@ -204,8 +198,6 @@ def _srs_upper_tri_alignment(phi, n_classes, neo):
         map_input=map_input,
         map_target=map_target,
         loss=loss_fn,
-        phi=phi,
-        ut=True
     )
 
 
@@ -230,8 +222,6 @@ def _srs_contrastive(phi, n_classes, neo):
         map_input=map_input,
         map_target=map_target,
         loss=loss_fn,
-        phi=phi,
-        ut=False
     )
 
 
@@ -259,8 +249,6 @@ def _srs_log_contrastive(phi, n_classes, neo):
         map_input=map_input,
         map_target=map_target,
         loss=loss_fn,
-        phi=phi,
-        ut=False
     )
 
 
