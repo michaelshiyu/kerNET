@@ -3,6 +3,10 @@
 
 # kerNET
 
+kerNET implements a modular training method for deep image classifiers.
+See [Getting Started](#getting-started) for how to use kerNET.
+See [References](#references) for the papers that proposed this modular learning method.
+
 ## Table of Contents
 1. [Installation](#installation)
 1. [Testing](#testing)
