@@ -22,4 +22,11 @@ net = kLinear(
 When using the kernel trick to approximate a kernel machine, [the representer theorem](https://en.wikipedia.org/wiki/Representer_theorem) necessitates basing the approximation on the full training set.
 In practice, a naive implementation for such a scheme on a typical image dataset can require a daunting amount of memory.
 In this case, use ```kernet.utils.networks.to_committee``` to convert your kernel machine into a memory-efficient version of itself (with the same parameters), and the amount of memory used can be controlled by specifying the expert size. 
+The smaller the expert size, the smaller the memory footprint but the longer it takes to evaluate your model.
+```angular2
+from kernet.utils import to_committee
+
+memory_efficient_net = to_committee(net, expert_size=100)
+```
+
 More details on how we implement this feature are provided in the docstring of ```kernet.layers.klinear.kLinearCommittee```.
