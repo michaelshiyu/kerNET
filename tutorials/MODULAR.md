@@ -45,6 +45,8 @@ python kernet/examples/modular_train.py -h
 
 End-to-end training baselines can be obtained with [kernet/examples/train.py](../kernet/examples/train.py).
 
+More details on the training pipelines are provided [here](WRAPPER.md).
+
 ## Using Component(s) From the Modular Learning Method
 
 If you want to use certain component(s) from our modular learning method, you can import the desired component(s) from kerNET into your own code. 
@@ -63,3 +65,7 @@ You can modify some settings during testing, to see all the things that you can 
 ```angular
 python kernet/examples/test.py -h
 ```
+
+Test logs will be saved in ```test.log``` and ```test.json```.
+
+You can test on a randomly-chosen subset by specifying ```--max_testset_size```.
