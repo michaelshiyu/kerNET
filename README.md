@@ -61,7 +61,7 @@ We currently support the following datasets and models.
   - Classic kernel method-based models
     - [Radial basis function networks](https://en.wikipedia.org/wiki/Radial_basis_function_network), [kernel machines](https://en.wikipedia.org/wiki/Kernel_method)
   - Neural networks
-    - Fully-connected networks
+    - [Fully-connected networks](https://en.wikipedia.org/wiki/Multilayer_perceptron)
     - [LeNet-5](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=726791)
     - [ResNets](https://www.cv-foundation.org/openaccess/content_cvpr_2016/papers/He_Deep_Residual_Learning_CVPR_2016_paper.pdf)
   - Kernel method-based connectionist models
