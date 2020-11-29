@@ -52,7 +52,9 @@ More details on the training pipelines are provided [here](WRAPPER.md).
 If you want to use certain component(s) from our modular learning method, you can import the desired component(s) from kerNET into your own code. 
 - [Proxy objectives](https://arxiv.org/pdf/2005.05541.pdf): These are the objective functions we use to train the hidden modules. Some reference implementations are in ```kernet.layers.loss```. 
 - [Kernels induced by neural network nonlinearities](https://arxiv.org/pdf/2005.05541.pdf): Neural network nonlinearities such as tanh or ReLU can be used to induce kernel functions, which are then used to construct the proxy objectives and also enable us to view neural networks as kernel machines. These kernel functions can be accessed via  ```kernet.layers.kcore.Phi```.
-- [Models](https://arxiv.org/pdf/2005.05541.pdf): The models in [kernet/models](../kernet/models/) whose names starts with a ```k``` are basically the same as the ones that do not start with a ```k```. The ```k``` models were implemented to work better with our modular learning pipeline.
+- [Models](https://arxiv.org/pdf/2005.05541.pdf)
+  - The models in [kernet/models](../kernet/models/) whose names starts with a ```k``` are basically the same as their counterparts that do not start with a ```k```. The only real difference is that the penultimate activation vectors of the ```k``` models are always normalized in order for them to be trained with our modular method. The ```k``` models also have some extra helper methods such as ```split``` that allow them to be used in our modular learning pipeline. 
+  - The models whose names end with an ```N``` had their penultimate activation vectors normalized. So they are exactly the same models as the ```k``` models. But the ```N``` models do not have the helper methods needed and therefore cannot be used in our modular learning pipeline. 
 
 ## Test a Trained Model
 

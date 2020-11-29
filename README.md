@@ -4,6 +4,8 @@
 # kerNET
 
 kerNET implements a modular training method for deep image classifiers.
+In addition, kerNET can be used for implementing radial basis function networks or as a helpful wrapper that simplifies the training of classifiers.
+
 See [Getting Started](#getting-started) for how to use kerNET.
 See [References](#references) for the papers that proposed this modular learning method.
 

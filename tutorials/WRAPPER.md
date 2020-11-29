@@ -12,6 +12,8 @@ We discuss some particularly helpful knobs here.
 
 All supported models and datasets can be selected using ```--model``` and ```--dataset```.
 
+More details on the models can be found in [here](MODULAR.md) (specifically, under Using Component(s) From the Modular Learning Method).
+
 ### Specify Training Settings
 
 You can full control over training.
